@@ -1,0 +1,47 @@
+# Déploiement Render — Marketplace Mali
+# Ce fichier permet de créer le service en un clic depuis le dépôt GitHub.
+#
+# Base de données : PostgreSQL gratuit et permanent (Neon.tech).
+# La variable DB_URL est à coller depuis Neon au moment de la création.
+services:
+  - type: web
+    name: marketplace-mali
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /marche.html
+    autoDeploy: true
+    envVars:
+      - key: APP_NAME
+        value: Marketplace Mali
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        value: "base64:zWaDbNE4OJ2epywJvCM18pHVgO/pnhtmfvPDW+0rV2Q="
+      - key: APP_URL
+        value: https://marketplace-mali.onrender.com
+      - key: APP_LOCALE
+        value: fr
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: warning
+      - key: DB_CONNECTION
+        value: pgsql
+      # À renseigner dans Render : chaîne de connexion Neon (postgresql://…?sslmode=require)
+      - key: DB_URL
+        sync: false
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: FILESYSTEM_DISK
+        value: local
+      - key: BCRYPT_ROUNDS
+        value: "12"

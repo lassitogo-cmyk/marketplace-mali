@@ -1,0 +1,2435 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Marketplace">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0E7C3A">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>Marketplace Mali</title>
+<style>
+  :root{
+    --green:#0E7C3A; --green-dark:#0A5F2C; --bg:#F2F5F2; --card:#FFFFFF;
+    --text:#1D2B1D; --muted:#5A6B5A; --line:#E2E8E2; --red:#B91C1C; --amber:#B45309;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0; background:var(--bg); color:var(--text);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  a{color:var(--green); text-decoration:none}
+
+  header{position:sticky; top:0; z-index:20; background:var(--green); color:#fff;
+         padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+         display:flex; align-items:center; gap:10px}
+  header .logo{font-size:22px}
+  header h1{font-size:17px; margin:0; flex:1; font-weight:700}
+  header .hbtn{background:rgba(255,255,255,.16); color:#fff; border:0; border-radius:10px;
+               padding:8px 11px; font-size:15px; position:relative}
+  header .hbtn .n{position:absolute; top:-6px; right:-6px; background:#fff; color:var(--green);
+                  font-size:11px; font-weight:700; min-width:18px; height:18px; line-height:18px;
+                  border-radius:9px; text-align:center; padding:0 4px}
+
+  .wrap{max-width:520px; margin:0 auto; padding:12px}
+
+  .card{background:var(--card); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06);
+        padding:14px; margin-bottom:12px}
+  .btn{display:block; width:100%; padding:14px; border-radius:12px; border:0;
+       background:var(--green); color:#fff; font-size:16px; font-weight:600; text-align:center;
+       cursor:pointer; margin:6px 0}
+  .btn:active{background:var(--green-dark)}
+  .btn.ghost{background:#fff; color:var(--green); border:1.5px solid var(--green)}
+  .btn.small{display:inline-block; width:auto; padding:9px 14px; font-size:14px; margin:2px}
+  .btn.gray{background:#fff; color:var(--muted); border:1.5px solid var(--line)}
+  .btn.red{background:#fff; color:var(--red); border:1.5px solid var(--red)}
+
+  label{display:block; font-size:13px; font-weight:600; color:var(--muted); margin:12px 0 5px}
+  input,textarea,select{width:100%; padding:12px; border-radius:10px; border:1.5px solid var(--line);
+       font-size:16px; font-family:inherit; background:#fff; color:var(--text)}
+  textarea{min-height:70px; resize:vertical}
+  input:focus,textarea:focus,select:focus{outline:none; border-color:var(--green)}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+
+  .search{display:flex; gap:8px; margin-bottom:10px}
+  .search input{flex:1}
+  .chips{display:flex; gap:8px; overflow-x:auto; padding:2px 0 10px; scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto; background:#fff; border:1.5px solid var(--line); color:var(--muted);
+        padding:8px 14px; border-radius:20px; font-size:14px; font-weight:600}
+  .chip.on{background:var(--green); border-color:var(--green); color:#fff}
+
+  .grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+  .prod{background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 2px 10px rgba(16,58,32,.08);
+        display:flex; flex-direction:column; transition:transform .15s}
+  .prod:active{transform:scale(.98)}
+  .prod .vis{position:relative; height:140px; display:flex; align-items:center; justify-content:center;
+             font-size:52px; background:linear-gradient(160deg,#EAF3EA,#DDEBDD)}
+  .prod .vis img{width:100%; height:100%; object-fit:cover; display:block}
+  .prod .badge{position:absolute; top:8px; left:8px; background:rgba(255,255,255,.94);
+               color:var(--green); font-size:10px; font-weight:800; padding:4px 8px; border-radius:8px;
+               box-shadow:0 1px 4px rgba(0,0,0,.12)}
+  .prod .body{padding:10px 11px 11px; display:flex; flex-direction:column; flex:1}
+  .prod .nm{font-size:14px; font-weight:700; line-height:1.25;
+            display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+  .prod .st{font-size:12px; color:var(--muted); margin-top:2px;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .prod .dots{display:flex; gap:4px; margin-top:5px}
+  .prod .dots i{width:12px; height:12px; border-radius:50%; border:1px solid rgba(0,0,0,.15)}
+  .prod .pr{margin-top:auto; padding-top:8px; color:var(--green); font-weight:800; font-size:16px}
+  .prod .add{margin-top:6px; background:var(--green); color:#fff; border:0; border-radius:9px;
+             padding:9px; font-size:14px; font-weight:700}
+
+  /* bandeau d'accueil "pub" */
+  .hero{position:relative; overflow:hidden; border-radius:20px; padding:20px 18px 18px; color:#fff;
+        background:linear-gradient(135deg,#0A5F2C 0%,#0E7C3A 45%,#22A34E 100%);
+        box-shadow:0 8px 24px rgba(14,124,58,.28); margin-bottom:12px}
+  .hero:before,.hero:after{content:''; position:absolute; border-radius:50%;
+        background:rgba(255,255,255,.12)}
+  .hero:before{width:170px; height:170px; top:-70px; right:-50px}
+  .hero:after{width:110px; height:110px; bottom:-60px; left:-30px}
+  .hero .promo{display:inline-block; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.35);
+        padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.3px}
+  .hero h2{color:#fff; font-size:22px; line-height:1.2; margin:9px 0 6px; position:relative}
+  .hero .hsub{font-size:13px; opacity:.92; position:relative}
+  .hero .hact{display:flex; gap:8px; margin-top:14px; position:relative}
+  .hero .hact button{flex:1; border:0; border-radius:11px; padding:11px; font-size:13px; font-weight:700;
+        background:#fff; color:var(--green); font-family:inherit}
+  .hero .hact button.ghost{background:rgba(255,255,255,.16); color:#fff;
+        border:1.5px solid rgba(255,255,255,.5)}
+  .trust{display:flex; gap:8px; margin-bottom:14px}
+  .trust div{flex:1; background:#fff; border-radius:12px; padding:8px 4px; text-align:center;
+        font-size:10.5px; color:var(--muted); line-height:1.35; box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  .trust div b{display:block; font-size:17px; margin-bottom:2px}
+  .sec-title{display:flex; justify-content:space-between; align-items:baseline; margin:16px 2px 8px}
+  .sec-title h3{margin:0; font-size:15px}
+  .sec-title span{font-size:12px; color:var(--green); font-weight:700}
+  .stores{display:flex; gap:10px; overflow-x:auto; padding:2px 2px 8px; scrollbar-width:none}
+  .stores::-webkit-scrollbar{display:none}
+  .storec{flex:0 0 140px; background:#fff; border-radius:14px; padding:13px 10px; text-align:center;
+        box-shadow:0 2px 10px rgba(16,58,32,.08)}
+  .storec .av{width:46px; height:46px; margin:0 auto 7px; border-radius:50%; display:flex;
+        align-items:center; justify-content:center; font-size:22px;
+        background:linear-gradient(160deg,#EAF3EA,#D6E8D6)}
+  .storec b{display:block; font-size:12.5px; line-height:1.3;
+        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+  .storec span{font-size:11px; color:var(--muted)}
+
+  /* galerie photos du produit */
+  .gal{position:relative; border-radius:16px; overflow:hidden; background:#EEF6EE; margin-bottom:10px}
+  .gal-track{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none;
+             -webkit-overflow-scrolling:touch; scroll-behavior:smooth}
+  .gal-track::-webkit-scrollbar{display:none}
+  .gal-slide{flex:0 0 100%; scroll-snap-align:center; height:300px; display:flex; align-items:center;
+             justify-content:center; font-size:96px; background:linear-gradient(160deg,#EAF3EA,#DDEBDD)}
+  .gal-slide img{width:100%; height:100%; object-fit:cover; display:block}
+  .gal-nav{position:absolute; top:50%; transform:translateY(-50%); width:34px; height:34px;
+           border-radius:50%; border:0; background:rgba(255,255,255,.9); color:#1D2B1D;
+           font-size:18px; font-weight:800; box-shadow:0 1px 6px rgba(0,0,0,.2);
+           display:flex; align-items:center; justify-content:center}
+  .gal-nav.l{left:8px} .gal-nav.r{right:8px}
+  .gal-dots{position:absolute; bottom:10px; left:0; right:0; display:flex; justify-content:center; gap:6px}
+  .gal-dots i{width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.65);
+              box-shadow:0 0 0 1px rgba(0,0,0,.18); transition:width .2s}
+  .gal-dots i.on{width:18px; border-radius:4px; background:#fff}
+  .thumbs{display:flex; gap:8px; overflow-x:auto; padding:2px 0 6px; scrollbar-width:none}
+  .thumbs::-webkit-scrollbar{display:none}
+  .thumbs button{width:56px; height:56px; border-radius:10px; overflow:hidden; border:2px solid transparent;
+                 flex:0 0 auto; padding:0; background:#EEF6EE}
+  .thumbs button.on{border-color:var(--green)}
+  .thumbs img{width:100%; height:100%; object-fit:cover; display:block}
+
+  /* choix couleur / taille */
+  .varlabel{font-size:13px; font-weight:700; margin:14px 0 6px; display:flex; justify-content:space-between}
+  .varlabel span{color:var(--green); font-weight:700; font-size:12px}
+  .swatches,.sizes{display:flex; flex-wrap:wrap; gap:8px}
+  .swatch{display:flex; align-items:center; gap:7px; border:1.5px solid var(--line); background:#fff;
+          border-radius:22px; padding:7px 13px 7px 9px; font-size:13px; font-weight:600; color:var(--text);
+          font-family:inherit}
+  .swatch .dot{width:16px; height:16px; border-radius:50%; border:1px solid rgba(0,0,0,.18)}
+  .swatch.on{border-color:var(--green); background:#F0FDF4; box-shadow:0 0 0 2px rgba(14,124,58,.14)}
+  .size{min-width:48px; padding:9px 13px; border:1.5px solid var(--line); background:#fff; border-radius:10px;
+        font-weight:700; font-size:14px; color:var(--text); font-family:inherit}
+  .size.on{border-color:var(--green); background:var(--green); color:#fff}
+
+  /* formulaire vendeur : plusieurs photos + variantes */
+  .phgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:6px 0 8px}
+  .ph{position:relative; aspect-ratio:1; border-radius:11px; overflow:hidden; background:#EEF6EE}
+  .ph img{width:100%; height:100%; object-fit:cover; display:block}
+  .ph .x{position:absolute; top:3px; right:3px; width:22px; height:22px; border:0; border-radius:50%;
+        background:rgba(0,0,0,.58); color:#fff; font-size:11px; line-height:1}
+  .ph .star{position:absolute; top:3px; left:3px; width:22px; height:22px; border:0; border-radius:50%;
+        background:rgba(255,255,255,.9); color:#B45309; font-size:12px; line-height:1}
+  .ph .main{position:absolute; left:0; right:0; bottom:0; background:rgba(14,124,58,.88); color:#fff;
+        font-size:9px; font-weight:700; text-align:center; padding:3px 2px}
+  .vari{display:flex; flex-wrap:wrap; gap:6px; margin-top:7px}
+  .vari button{padding:6px 10px; border-radius:9px; border:1.5px solid var(--line); background:#fff;
+        font-size:12px; font-weight:600; color:var(--muted); font-family:inherit}
+  .vari button:active{background:#EEF6EE}
+  .vchip{display:inline-flex; align-items:center; gap:6px; background:#F0FDF4; border:1px solid #86EFAC;
+        color:#14532D; border-radius:16px; padding:5px 10px; font-size:12px; font-weight:700}
+  .vchip .dot{width:12px; height:12px; border-radius:50%; border:1px solid rgba(0,0,0,.18)}
+  .vchip b{font-weight:800; color:#15803D; font-size:10px}
+
+  .vis{border-radius:14px}
+  .vis img, .big-vis img{width:100%; height:100%; object-fit:cover; display:block}
+  .big-vis{height:170px; display:flex; align-items:center; justify-content:center;
+           font-size:72px; background:linear-gradient(160deg,#EAF3EA,#DDEBDD); margin-bottom:12px;
+           overflow:hidden}
+  .prev{border:1.5px dashed var(--line); border-radius:12px; min-height:120px;
+        display:flex; align-items:center; justify-content:center; overflow:hidden;
+        background:#FAFCFA; margin-bottom:8px; text-align:center; padding:8px}
+  .prev img{max-width:100%; max-height:220px; border-radius:8px; display:block}
+  .thumb{width:52px; height:52px; border-radius:10px; flex:0 0 auto; overflow:hidden;
+         display:flex; align-items:center; justify-content:center; font-size:26px;
+         background:linear-gradient(160deg,#EAF3EA,#DDEBDD)}
+  .thumb img{width:100%; height:100%; object-fit:cover; display:block}
+  .vrow{display:flex; gap:12px; align-items:center}
+  .vrow .body{flex:1; min-width:0}
+
+  .pill{display:inline-block; padding:4px 10px; border-radius:14px; font-size:12px; font-weight:700}
+  .muted{color:var(--muted); font-size:13px}
+  .right{float:right}
+  .sep{height:1px; background:var(--line); margin:10px 0}
+
+  .iline{display:flex; justify-content:space-between; gap:8px; padding:8px 0;
+         border-bottom:1px solid var(--line); font-size:14px}
+  .iline:last-child{border-bottom:0}
+  .iline .q{display:flex; align-items:center; gap:8px}
+  .iline button{width:30px; height:30px; border-radius:8px; border:1.5px solid var(--line);
+                background:#fff; font-size:17px; font-weight:700; color:var(--green)}
+
+  nav.tabs{position:fixed; bottom:0; left:0; right:0; z-index:20; background:#fff;
+           border-top:1px solid var(--line); display:flex; justify-content:space-around;
+           padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  nav.tabs button{flex:1; background:none; border:0; font-size:11px; color:var(--muted);
+                   display:flex; flex-direction:column; align-items:center; gap:2px; padding:5px 0}
+  nav.tabs button .i{font-size:21px}
+  nav.tabs button.on{color:var(--green); font-weight:700}
+
+  #toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(80px + env(safe-area-inset-bottom));
+         background:#1D2B1D; color:#fff; padding:12px 18px; border-radius:12px; font-size:14px;
+         max-width:85%; z-index:50; display:none; text-align:center}
+  .err{background:#FEE2E2; color:var(--red); border-radius:10px; padding:10px 12px;
+       font-size:14px; margin:10px 0; display:none}
+  .ok{background:#DCFCE7; color:var(--green-dark); border-radius:10px; padding:10px 12px;
+      font-size:14px; margin:10px 0; display:none}
+  .demo{background:#EEF6EE; border-radius:12px; padding:10px 12px; font-size:13px; line-height:1.7}
+  .demo b{color:var(--green)}
+  .demo .use{background:#fff; border:1px solid var(--green); color:var(--green);
+             border-radius:8px; padding:4px 10px; font-size:12px; font-weight:700; margin-left:6px}
+
+  /* segments (client / vendeur, filtres abonnements) */
+  .seg{display:flex; flex-wrap:wrap; gap:6px; background:#E8EEE8; border-radius:12px; padding:4px; margin:4px 0 12px}
+  .seg button{flex:1; min-width:29%; border:0; background:none; color:var(--muted); font-size:13px; font-weight:700;
+              padding:6px 4px; border-radius:9px; font-family:inherit}
+  .seg button.on{background:#fff; color:var(--green); box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+  /* bandeaux d'état d'abonnement */
+  .banner-ok{background:linear-gradient(135deg,#DCFCE7,#F0FDF4); border:1px solid #86EFAC;
+             color:#14532D; font-size:14px; line-height:1.55}
+  .banner-attn{background:linear-gradient(135deg,#FEF3C7,#FFFBEB); border:1px solid #FCD34D;
+               color:#78350F; font-size:14px; line-height:1.55}
+  .banner-bad{background:linear-gradient(135deg,#FEE2E2,#FEF2F2); border:1px solid #FCA5A5;
+              color:#7F1D1D; font-size:14px; line-height:1.55}
+  .banner-ok .btn, .banner-attn .btn, .banner-bad .btn{margin-top:8px}
+
+  /* paiement Orange Money */
+  .om-box{background:#FFF7ED; border:1.5px dashed #FDBA74; border-radius:12px;
+          padding:12px; text-align:center; margin:10px 0}
+  .om-num{font-size:25px; font-weight:800; letter-spacing:1px; color:#C2410C; margin:6px 0}
+  .om-box .btn{margin-top:8px}
+  .om-steps{margin:10px 0 4px 18px; padding:0; font-size:13.5px; line-height:1.65; color:var(--text)}
+  .om-steps li{margin-bottom:4px}
+
+  /* suivi pas à pas */
+  .tl-row{display:flex; gap:10px; padding:9px 0; border-bottom:1px solid var(--line)}
+  .tl-row:last-child{border-bottom:0}
+  .tl-row .tl-ic{width:30px; height:30px; flex:0 0 auto; border-radius:50%; background:#EEF6EE;
+                 display:flex; align-items:center; justify-content:center; font-size:15px}
+  .tl-row b{font-size:14px}
+  .tl-row .muted{font-size:12px; line-height:1.5}
+
+  .center{text-align:center}
+  .vtabs{display:flex; gap:6px; margin-bottom:12px}
+  .vtab{flex:1; background:#fff; border:1.5px solid var(--line); color:var(--muted); border-radius:10px;
+        padding:9px 4px; font-size:13px; font-weight:700}
+  .vtab.on{background:var(--green); border-color:var(--green); color:#fff}
+  .empty{text-align:center; color:var(--muted); padding:30px 10px; font-size:15px}
+  .stats{display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:12px}
+  .stats .st{background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06);
+             padding:10px 4px; text-align:center}
+  .stats .st b{display:block; font-size:18px; color:var(--green)}
+  .stats .st span{font-size:11px; color:var(--muted)}
+  h2{font-size:18px; margin:6px 0 12px}
+  h3{font-size:15px; margin:14px 0 6px}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🛍️</span>
+  <h1>Marketplace Mali</h1>
+  <button class="hbtn" id="shareH" onclick="app.share()" aria-label="Partager">📤</button>
+  <button class="hbtn" id="cartH" onclick="app.go('#/cart')" aria-label="Panier">🛒<span class="n" id="cartN" style="display:none">0</span></button>
+  <button class="hbtn" id="authBtn" onclick="app.authClick()">—</button>
+</header>
+
+<main id="app" class="wrap"></main>
+
+<nav class="tabs" id="tabs"></nav>
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   Marketplace Mali — version web (iPhone / ordinateur)
+   Même serveur, mêmes comptes que l'application Android.
+   ============================================================ */
+
+const $ = s => document.querySelector(s);
+const API = 'api/';
+
+let token  = localStorage.getItem('mm_token') || '';
+let user   = JSON.parse(localStorage.getItem('mm_user') || 'null');
+let cart   = JSON.parse(localStorage.getItem('mm_cart') || '[]');
+let savedHash = '';            // où revenir après la connexion
+
+const STATUS = {
+  en_attente: {label:'En attente', color:'#B45309', bg:'#FEF3C7'},
+  confirmee:  {label:'Confirmée',  color:'#1D4ED8', bg:'#DBEAFE'},
+  livree:     {label:'Livrée',     color:'#15803D', bg:'#DCFCE7'},
+  annulee:    {label:'Annulée',   color:'#B91C1C', bg:'#FEE2E2'},
+};
+
+const SUBS = {
+  en_attente:       {label:'En attente',        color:'#B45309', bg:'#FEF3C7'},
+  paiement_declare: {label:'Paiement à vérifier', color:'#7C3AED', bg:'#EDE9FE'},
+  actif:            {label:'Actif',             color:'#15803D', bg:'#DCFCE7'},
+  expire:           {label:'Expiré',            color:'#B91C1C', bg:'#FEE2E2'},
+  desactive:        {label:'Désactivé',         color:'#6B7280', bg:'#F3F4F6'},
+};
+
+function subPill(st){ const s = SUBS[st] || {label:st, color:'#555', bg:'#EEE'};
+  return '<span class="pill" style="color:'+s.color+';background:'+s.bg+'">'+s.label+'</span>'; }
+
+const EV_LABELS = {
+  demande:'Demande envoyée', paiement:'Paiement Orange Money déclaré',
+  paiement_rejete:'Paiement non retrouvé', activation:'Abonnement activé',
+  renouvellement:'Renouvellement activé', desactivation:'Abonnement désactivé',
+  expiration:'Abonnement expiré',
+};
+const EV_ICONS = {demande:'📩', paiement:'💰', paiement_rejete:'↩️',
+  activation:'✅', renouvellement:'🔁', desactivation:'⛔', expiration:'⌛'};
+
+function timeline(events){
+  return (events || []).map(ev =>
+    '<div class="tl-row"><span class="tl-ic">'+(EV_ICONS[ev.type]||'•')+'</span>' +
+    '<div style="flex:1"><b>'+(EV_LABELS[ev.type]||ev.type)+'</b>' +
+    '<div class="muted">'+ddate(ev.created_at)+(ev.author ? ' · '+esc(ev.author.name) : '')+'</div>' +
+    (ev.note ? '<div class="muted">'+esc(ev.note)+'</div>' : '') +
+    '</div></div>').join('');
+}
+
+/* ---------- petits outils ---------- */
+
+function esc(s){ return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+function fcfa(n){ n = Number(n) || 0;
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' FCFA'; }
+
+function ddate(iso){ const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR', {day:'2-digit', month:'short', year:'numeric'}) +
+         ' à ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}); }
+
+function pill(status){ const s = STATUS[status] || {label:status, color:'#555', bg:'#EEE'};
+  return '<span class="pill" style="color:'+s.color+';background:'+s.bg+'">'+s.label+'</span>'; }
+
+function emojiFor(cat){ const map = {'Électronique':'📱','Electronique':'📱','Mode':'👗','Maison':'🏠'};
+  return map[cat] || '🛍️'; }
+
+/* Visuel d'un produit : sa photo si elle existe, sinon un pictogramme. */
+function visHTML(p){
+  if (p && p.image){
+    return '<img src="'+esc(p.image)+'" alt="'+esc(p.name||'Photo du produit')+'" loading="lazy">';
+  }
+  return emojiFor(p && p.category && p.category.name);
+}
+
+/* Toutes les photos d'un produit (galerie). */
+function photosOf(p){
+  if (p && Array.isArray(p.photos) && p.photos.length) return p.photos;
+  return (p && p.image) ? [p.image] : [];
+}
+
+/* Couleur approximative pour les pastilles (rouge, bleu, noir…). */
+const COLOR_HEX = {
+  noir:'#111827', blanc:'#FFFFFF', rouge:'#DC2626', bleu:'#2563EB', vert:'#16A34A',
+  jaune:'#FACC15', orange:'#F97316', rose:'#EC4899', violet:'#7C3AED', gris:'#9CA3AF',
+  marron:'#92400E', beige:'#D8C9A3', dore:'#C9A227', 'doré':'#C9A227', argent:'#C0C0C0',
+  bordeaux:'#7F1D1D', turquoise:'#06B6D4', marine:'#1E3A8A', kaki:'#78716C',
+  creme:'#F5E6C8', 'crème':'#F5E6C8', 'bleu nuit':'#1E293B',
+  fuchsia:'#D946EF', or:'#D4AF37', bronze:'#A16207', chocolat:'#5C3317',
+};
+function colorHex(n){
+  const k = String(n||'').trim().toLowerCase();
+  if (COLOR_HEX[k]) return COLOR_HEX[k];
+  if (/^#[0-9a-f]{3,8}$/i.test(k)) return k;
+  return '#CBD5E1';
+}
+
+/* Carte produit du catalogue (accueil, boutique, recherche). */
+function prodCard(p){
+  const ph = photosOf(p);
+  const colors = p.colors || [];
+  const badge = colors.length
+    ? '<span class="badge">🎨 '+colors.length+' couleurs</span>'
+    : (p.stock > 0 && p.stock <= 3 ? '<span class="badge">Reste '+p.stock+'</span>' : '');
+  return '<div class="prod" onclick="app.go(\'#/product/'+p.id+'\')">' +
+    '<div class="vis">' +
+      (ph.length ? '<img src="'+esc(ph[0])+'" alt="'+esc(p.name)+'" loading="lazy">'
+                 : emojiFor(p.category && p.category.name)) +
+      badge +
+    '</div>' +
+    '<div class="body">' +
+      '<div class="nm">'+esc(p.name)+'</div>' +
+      '<div class="st">'+esc((p.store && p.store.name) || '')+'</div>' +
+      (colors.length ? '<div class="dots">'+colors.slice(0,6).map(c=>'<i style="background:'+colorHex(c)+'"></i>').join('')+'</div>' : '') +
+      '<div class="pr">'+fcfa(p.price)+'</div>' +
+      '<button class="add" onclick="event.stopPropagation();app.quickAdd('+p.id+')">＋ Panier</button>' +
+    '</div></div>';
+}
+
+let toastTimer = null;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>{ t.style.display = 'none'; }, 3200); }
+
+function saveCart(){ localStorage.setItem('mm_cart', JSON.stringify(cart)); refreshBadge(); }
+function refreshBadge(){ const n = cart.reduce((s,l)=>s+l.qty,0); const el = $('#cartN');
+  el.textContent = n; el.style.display = n ? 'inline-block' : 'none'; }
+
+/* ---------- accès API ---------- */
+
+async function api(path, opts = {}){
+  const headers = Object.assign({'Accept':'application/json'}, opts.headers || {});
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  let body = opts.body;
+  if (body && typeof body === 'object' && !(body instanceof FormData)){
+    headers['Content-Type'] = 'application/json'; body = JSON.stringify(body);
+  }
+  let res;
+  try{
+    res = await fetch(API + path, Object.assign({}, opts, {headers, body}));
+  }catch(e){
+    throw new Error('Connexion au serveur impossible. Vérifiez que le Mac est allumé et sur le même Wi-Fi.');
+  }
+  if (res.status === 401){
+    doLogout(false); location.hash = '#/login';
+    throw new Error('Session expirée — reconnectez-vous.');
+  }
+  const data = await res.json().catch(()=>({}));
+  if (!res.ok){
+    let msg = data.message || 'Erreur inattendue.';
+    if (data.errors){ msg = Object.values(data.errors).flat().join(' '); }
+    throw new Error(msg);
+  }
+  return data;
+}
+
+/* ---------- gestion session ---------- */
+
+function doLogin(payload){ token = payload.token; user = payload.user;
+  localStorage.setItem('mm_token', token);
+  localStorage.setItem('mm_user', JSON.stringify(user)); }
+
+function doLogout(call = true){
+  if (call && token){ api('logout', {method:'POST'}).catch(()=>{}); }
+  token = ''; user = null;
+  localStorage.removeItem('mm_token'); localStorage.removeItem('mm_user'); }
+
+/* ---------- panier ---------- */
+
+/* Article mis de côté quand un visiteur non connecté clique « Ajouter au panier ».
+   Après connexion (ou création de compte), il est ajouté automatiquement. */
+let pendingCart = JSON.parse(localStorage.getItem('mm_pending_cart') || 'null');
+
+function setPendingCart(prod, qty, variant){
+  pendingCart = {prod, qty, variant: variant || ''};
+  localStorage.setItem('mm_pending_cart', JSON.stringify(pendingCart));
+}
+
+function resumePendingCart(){
+  if (!pendingCart) return false;
+  const p = pendingCart; pendingCart = null;
+  localStorage.removeItem('mm_pending_cart');
+  if (!user || user.role !== 'client' || !p.prod) return false;
+  return addToCart(p.prod, p.qty || 1, p.variant);
+}
+
+function addToCart(prod, qty, variant){
+  /* Il faut être connecté (compte client) avant d'ajouter au panier. */
+  if (!user){
+    setPendingCart(prod, qty, variant);
+    savedHash = '#/cart';
+    toast('🔑 Connectez-vous d\'abord — votre article vous attend.');
+    location.hash = '#/login';
+    return false;
+  }
+  if (user.role !== 'client'){
+    toast('Seuls les clients peuvent commander sur le marché.');
+    return false;
+  }
+  const v = variant || '';
+  const key = prod.id + '|' + v;
+  const line = cart.find(l => (l.id + '|' + (l.variant || '')) === key);
+  const inCart = cart.filter(l => l.id === prod.id).reduce((s,l)=>s + l.qty, 0);
+  if (inCart + qty > prod.stock){
+    toast('Stock insuffisant : il reste ' + prod.stock + ' pièce(s).'); return false;
+  }
+  if (line){ line.qty += qty; }
+  else{
+    cart.push({id:prod.id, name:prod.name, price:prod.price, stock:prod.stock,
+               store:prod.store && prod.store.name, qty, variant:v,
+               image: photosOf(prod)[0] || ''});
+  }
+  saveCart();
+  toast('✓ ' + prod.name + (v ? ' (' + v + ')' : '') + ' ajouté au panier');
+  return true;
+}
+
+function cartTotal(){ return cart.reduce((s,l)=>s + l.price * l.qty, 0); }
+
+/* ---------- routeur ---------- */
+
+const app = {}; // handlers exposés aux onclick
+
+function renderTabs(){
+  const h = location.hash || '#/home';
+  const admin  = user && user.role === 'admin';
+  const vendor = user && user.role === 'vendeur';
+  const tabs = admin ? [
+    {href:'#/admin', i:'👥', l:'Personnes', on: h === '#/admin' || h === '#/admin/'},
+    {href:'#/admin/commandes', i:'📦', l:'Contrôle', on: h.startsWith('#/admin/commandes') || h.startsWith('#/admin/produits') || h.startsWith('#/admin/signalements')},
+    {href:'#/admin/abonnements', i:'💳', l:'Abos', on: h.startsWith('#/admin/abonnements') || h.startsWith('#/admin/sub')},
+    {href:'#/admin/profile', i:'⚙️', l:'Compte', on: h.startsWith('#/admin/profile')},
+  ] : vendor ? [
+    {href:'#/vendor', i:'📥', l:'Commandes', on: h === '#/vendor' || h === '#/vendor/'},
+    {href:'#/vendor/products', i:'🏷️', l:'Produits', on: h.startsWith('#/vendor/products')},
+    {href:'#/vendor/store', i:'🏪', l:'Boutique', on: h.startsWith('#/vendor/store')},
+    {href:'#/vendor/abonnement', i:'💳', l:'Abonnement', on: h.startsWith('#/vendor/abonnement')},
+  ] : [
+    {href:'#/home', i:'🏠', l:'Accueil', on: h.startsWith('#/home') || h.startsWith('#/product') || h === ''},
+    {href:'#/cart', i:'🛒', l:'Panier', on: h.startsWith('#/cart')},
+    {href:'#/orders', i:'📦', l:'Commandes', on: h.startsWith('#/order')},
+  ];
+  $('#tabs').innerHTML = tabs.map(t =>
+    '<button class="'+(t.on?'on':'')+'" onclick="location.hash=\''+t.href+'\'">'+
+    '<span class="i">'+t.i+'</span>'+t.l+'</button>').join('');
+}
+
+function router(){
+  renderTabs(); refreshBadge();
+  const authBtn = $('#authBtn');
+  if (user){ authBtn.textContent = '⏻'; authBtn.title = 'Se déconnecter'; }
+  else{ authBtn.textContent = '🔑'; authBtn.title = 'Se connecter'; }
+  /* Chaque rôle reste sur SA interface :
+     responsable -> panneau de contrôle (#/admin…)
+     vendeur/vendeuse -> uniquement l'espace boutique (#/vendor…)
+     cliente/client -> uniquement le marché (#/home, panier, commandes) */
+  $('#cartH').style.display = (user && user.role !== 'client') ? 'none' : '';
+
+  const h = (location.hash || '#/home').replace(/^#\/?/, '');
+  const parts = h.split('/');
+  const admin  = user && user.role === 'admin';
+  const vendor = user && user.role === 'vendeur';
+  const clientViews = ['', 'home', 'product', 'store', 'cart', 'orders', 'order'];
+
+  if (admin && parts[0] !== 'admin'){
+    location.hash = '#/admin'; return;      // le responsable reste dans son panneau
+  }
+  if (!admin && parts[0] === 'admin'){
+    location.hash = vendor ? '#/vendor' : '#/home'; return;
+  }
+  if (vendor && clientViews.includes(parts[0])){
+    location.hash = '#/vendor'; return;      // le vendeur reste dans sa boutique
+  }
+  if (!vendor && parts[0] === 'vendor'){
+    location.hash = '#/home'; return;        // l'acheteur reste sur le marché
+  }
+
+  document.body.scrollTop = 0;
+
+  if (parts[0] === 'login')        return viewLogin();
+  if (parts[0] === 'register')    return viewRegister();
+  if (parts[0] === 'product')     return viewProduct(parts[1]);
+  if (parts[0] === 'store')       return viewStore(parts[1]);
+  if (parts[0] === 'cart')        return viewCart();
+  if (parts[0] === 'orders')       return viewOrders();
+  if (parts[0] === 'order')       return viewOrder(parts[1]);
+  if (parts[0] === 'vendor')      return viewVendor(parts.slice(1));
+  if (parts[0] === 'admin')       return viewAdmin(parts.slice(1));
+  viewHome();
+}
+
+app.go = h => { location.hash = h; };
+
+/* ---------- partage du marché (WhatsApp, TikTok, messages…) ---------- */
+
+function marketURL(){ return location.origin + '/marche.html'; }
+
+app.share = async () => {
+  const url  = marketURL();
+  const text = '🛍️ Marketplace Mali — la marketplace des vendeurs de Bamako ! ' +
+               'Connecte-toi au même Wi-Fi puis ouvre :';
+  /* iPhone : ouvre la feuille de partage native (WhatsApp, TikTok, Messages…) */
+  if (navigator.share){
+    try{ await navigator.share({title:'Marketplace Mali', text, url}); return; }
+    catch(e){ if (e && e.name === 'AbortError') return; }
+  }
+  /* repli : WhatsApp directement */
+  window.open('https://wa.me/?text=' + encodeURIComponent(text + ' ' + url), '_blank');
+  toast('Message prêt sur WhatsApp — choisis le destinataire 📤');
+};
+
+app.copyLink = () => {
+  const url = marketURL();
+  const fait = () => toast('✓ Lien copié — colle-le dans WhatsApp ou TikTok');
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(fait).catch(() => oldCopy(url, fait));
+  } else oldCopy(url, fait);
+};
+
+function oldCopy(txt, fait){
+  const z = document.createElement('textarea');
+  z.value = txt; z.style.position = 'fixed'; z.style.opacity = '0';
+  document.body.appendChild(z); z.focus(); z.select();
+  let ok = false;
+  try{ ok = document.execCommand('copy'); }catch(e){}
+  z.remove();
+  if (ok) fait();
+  else toast('Recopie ce lien : ' + txt);
+}
+app.authClick = () => {
+  if (user && confirm('Se déconnecter ?')){ doLogout(); location.hash = '#/home'; router(); }
+  else if (!user){ savedHash = location.hash || '#/home'; location.hash = '#/login'; }
+};
+
+/* ============================================================
+   VUES
+   ============================================================ */
+
+/* ---------- catalogue ---------- */
+
+const catalog = { items:[], page:1, last:1, search:'', cat:0, byId:{} };
+
+async function viewHome(){
+  $('#app').innerHTML = '<div class="empty">Chargement du catalogue…</div>';
+  try{
+    await loadProducts(true);
+    await ensureCategories();
+    let stores = [];
+    try{ const d = await api('stores'); stores = (d.data || []).slice(0, 10); }catch(e){}
+
+    $('#app').innerHTML =
+      '<div class="hero">' +
+        '<span class="promo">🇲🇱 Livraison à Bamako</span>' +
+        '<h2>Le marché de Bamako,<br>dans votre poche</h2>' +
+        '<div class="hsub">Vêtements · Chaussures · Électronique · Maison</div>' +
+        '<div class="hact">' +
+          '<button onclick="document.getElementById(\'q\').scrollIntoView({behavior:\'smooth\'})">Voir les produits</button>' +
+          '<button class="ghost" onclick="app.share()">📤 Partager</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="trust">' +
+        '<div><b>🚚</b>Livraison<br>Bamako</div>' +
+        '<div><b>✅</b>Vendeurs<br>vérifiés</div>' +
+        '<div><b>📱</b>Commande<br>facile</div>' +
+      '</div>' +
+      (stores.length ? storesHTML(stores) : '') +
+      '<div class="search"><input id="q" type="search" placeholder="🔍 Rechercher un produit…"' +
+      ' value="'+esc(catalog.search)+'" oninput="app.search(this.value)"></div>' +
+      '<div class="chips" id="chips"></div>' +
+      '<div class="sec-title"><h3>🛍️ Produits du marché</h3><span id="pcount"></span></div>' +
+      '<div class="grid" id="grid"></div>' +
+      '<button class="btn ghost" id="more" style="display:none;margin-top:12px" onclick="app.more()">Charger plus de produits</button>';
+    renderChips(); renderGrid();
+  }catch(e){ $('#app').innerHTML = '<div class="card err" style="display:block">'+esc(e.message)+'</div>'; }
+}
+
+function storesHTML(stores){
+  return '<div class="sec-title"><h3>🏪 Boutiques du marché</h3><span>'+stores.length+'</span></div>' +
+    '<div class="stores">' + stores.map(s =>
+      '<div class="storec" onclick="app.go(\'#/store/'+s.id+'\')">' +
+        '<div class="av">🏪</div><b>'+esc(s.name)+'</b>' +
+        '<span>'+(s.products_count || 0)+' produit(s)</span>' +
+      '</div>').join('') + '</div>';
+}
+
+/* Une boutique et ses produits. */
+async function viewStore(id){
+  $('#app').innerHTML = '<div class="empty">Chargement de la boutique…</div>';
+  let d;
+  try{ d = await api('stores/' + id); }catch(e){
+    $('#app').innerHTML = '<a href="#/home">‹ Retour</a>' +
+      '<div class="card err" style="display:block;margin-top:8px">'+esc(e.message)+'</div>'; return; }
+  const s = d.store, prods = (d.products && d.products.data) || [];
+  $('#app').innerHTML =
+    '<a href="#/home">‹ Retour au marché</a>' +
+    '<div class="card" style="margin-top:8px; text-align:center">' +
+      '<div class="storec" style="box-shadow:none; margin:0 auto 6px; flex:0 0 auto; width:120px; padding:0">' +
+        '<div class="av">🏪</div></div>' +
+      '<h2 style="margin:0 0 4px">'+esc(s.name)+'</h2>' +
+      '<div class="muted">'+esc(s.city || 'Bamako')+(s.phone ? ' · 📞 '+esc(s.phone) : '')+'</div>' +
+      (s.description ? '<div class="muted" style="margin-top:6px">'+esc(s.description)+'</div>' : '') +
+    '</div>' +
+    '<div class="sec-title"><h3>Produits</h3><span>'+prods.length+'</span></div>' +
+    '<div class="grid">' + (prods.length ? prods.map(prodCard).join('')
+      : '<div class="empty" style="grid-column:1/-1">Aucun produit pour l\'instant.</div>') + '</div>';
+}
+
+async function loadProducts(reset){
+  const params = new URLSearchParams();
+  params.set('page', catalog.page);
+  if (catalog.search) params.set('search', catalog.search);
+  if (catalog.cat)    params.set('category', catalog.cat);
+  const data = await api('products?' + params.toString());
+  if (reset){ catalog.items = []; catalog.last = data.last_page || 1; }
+  catalog.items = catalog.items.concat(data.data || []);
+  (data.data || []).forEach(p => catalog.byId[p.id] = p);
+  const more = $('#more'); if (more) more.style.display =
+    (data.next_page_url ? 'block' : 'none');
+}
+
+async function ensureCategories(){
+  if (!viewHome.cats){ viewHome.cats = await api('categories'); }
+  return viewHome.cats;
+}
+
+function renderChips(){
+  const cats = viewHome.cats || [];
+  let html = '<button class="chip '+(catalog.cat===0?'on':'')+'" onclick="app.setCat(0)">Tout</button>';
+  html += cats.map(c =>
+    '<button class="chip '+(catalog.cat===c.id?'on':'')+'" onclick="app.setCat('+c.id+')">'+
+    emojiFor(c.name)+' '+esc(c.name)+'</button>').join('');
+  $('#chips').innerHTML = html;
+}
+
+function renderGrid(){
+  if (!catalog.items.length){
+    $('#grid').innerHTML = '<div class="empty" style="grid-column:1/-1">Aucun produit ne correspond.</div>'; return;
+  }
+  $('#grid').innerHTML = catalog.items.map(prodCard).join('');
+  const c = $('#pcount'); if (c) c.textContent = catalog.items.length + ' affiché(s)';
+}
+
+app.search = s => {
+  clearTimeout(app._t);
+  app._t = setTimeout(async () => {
+    catalog.search = s.trim(); catalog.page = 1; await loadProducts(true); renderGrid();
+  }, 350);
+};
+app.setCat = async id => { catalog.cat = id; catalog.page = 1;
+  await loadProducts(true); renderChips(); renderGrid(); };
+app.more  = async () => { catalog.page++; await loadProducts(false); renderGrid(); };
+app.quickAdd = id => { const p = catalog.byId[id];
+  if (!p) return;
+  // Produit à couleurs / tailles : le client choisit sur la fiche avant d'ajouter.
+  if ((p.colors && p.colors.length) || (p.sizes && p.sizes.length)){
+    return app.go('#/product/' + id);
+  }
+  addToCart(p, 1);
+};
+
+/* ---------- fiche produit ---------- */
+
+app._qty = 1;
+app._photo = 0;
+
+async function viewProduct(id){
+  $('#app').innerHTML = '<div class="empty">Chargement…</div>';
+  let p;
+  try{ p = await api('products/' + id); }catch(e){
+    $('#app').innerHTML = '<div class="card err" style="display:block">'+esc(e.message)+'</div>'; return; }
+  app._p = p; app._qty = 1; app._photo = 0;
+  const colors = p.colors || [], sizes = p.sizes || [];
+  app._color = colors.length ? colors[0] : '';
+  app._size  = '';
+
+  const ph = photosOf(p);
+  const gallery = ph.length
+    ? '<div class="gal">' +
+        '<div class="gal-track" id="gal" onscroll="app.galScroll(this)">' +
+          ph.map((src,i)=>'<div class="gal-slide"><img src="'+esc(src)+'" alt="'+esc(p.name)+' — photo '+(i+1)+'"></div>').join('') +
+        '</div>' +
+        (ph.length > 1
+          ? '<button class="gal-nav l" onclick="app.galGo(-1)" aria-label="Photo précédente">‹</button>' +
+            '<button class="gal-nav r" onclick="app.galGo(1)" aria-label="Photo suivante">›</button>' +
+            '<div class="gal-dots" id="galdots">' +
+              ph.map((_,i)=>'<i class="'+(i===0?'on':'')+'"></i>').join('') + '</div>'
+          : '') +
+      '</div>' +
+      (ph.length > 1
+        ? '<div class="thumbs" id="thumbs">' +
+            ph.map((src,i)=>'<button class="'+(i===0?'on':'')+'" onclick="app.galTo('+i+')">' +
+              '<img src="'+esc(src)+'" alt="Miniature '+(i+1)+'"></button>').join('') +
+          '</div>'
+        : '')
+    : '<div class="big-vis">'+emojiFor(p.category && p.category.name)+'</div>';
+
+  const colorBox = colors.length
+    ? '<div class="varlabel">🎨 Couleur <span id="c-sel">'+esc(app._color)+'</span></div>' +
+      '<div class="swatches">' + colors.map(c =>
+        '<button class="swatch '+(c===app._color?'on':'')+'" data-v="'+esc(c)+'" onclick="app.pickColor(this)">' +
+          '<span class="dot" style="background:'+colorHex(c)+'"></span>'+esc(c)+'</button>').join('') + '</div>'
+    : '';
+
+  const sizeBox = sizes.length
+    ? '<div class="varlabel">📏 Taille <span id="sz-sel">Choisir</span></div>' +
+      '<div class="sizes">' + sizes.map(s =>
+        '<button class="size" data-v="'+esc(s)+'" onclick="app.pickSize(this)">'+esc(s)+'</button>').join('') + '</div>'
+    : '';
+
+  const hint = (colors.length || sizes.length)
+    ? '<div class="muted" style="margin-top:10px">👆 Faites glisser les photos et choisissez votre ' +
+      (colors.length && sizes.length ? 'couleur et taille' : colors.length ? 'couleur' : 'taille') + ' avant d\'ajouter.</div>'
+    : '';
+
+  $('#app').innerHTML =
+    '<a href="#/home">‹ Retour au catalogue</a>' +
+    '<div class="card" style="margin-top:8px">' +
+      gallery +
+      '<h2 style="margin:0 0 4px">'+esc(p.name)+'</h2>' +
+      '<div class="muted">🏪 '+esc(p.store && p.store.name || 'Boutique')+
+        (p.category ? ' · '+emojiFor(p.category.name)+' '+esc(p.category.name) : '')+'</div>' +
+      '<div style="font-size:26px; color:var(--green); font-weight:800; margin:10px 0 2px">'+fcfa(p.price)+'</div>' +
+      '<div class="muted">'+(p.stock>0 ? 'En stock : '+p.stock+' pièce(s)' : 'Rupture de stock')+'</div>' +
+      colorBox + sizeBox + hint +
+      '<div style="display:flex; align-items:center; gap:12px; margin-top:16px">' +
+        '<span style="font-size:16px; font-weight:700">Quantité</span>' +
+        '<span class="iline" style="border:0; flex:1; justify-content:flex-end">' +
+          '<span class="q"><button onclick="app.step(-1)">−</button>' +
+          '<b id="q" style="min-width:26px; text-align:center; font-size:17px">1</b>' +
+          '<button onclick="app.step(1)">+</button></span></span>' +
+      '</div>' +
+      '<button class="btn" '+(p.stock>0?'':'disabled style="opacity:.45"')+
+        ' onclick="app.addVariant()">🛒 Ajouter au panier</button>' +
+    '</div>' +
+    '<div class="card"><h3 style="margin-top:0">Description</h3>' +
+      '<p style="line-height:1.6; font-size:15px; margin:0">'+esc(p.description || 'Pas de description.')+'</p></div>';
+}
+
+app.step = d => { app._qty = Math.max(1, Math.min(99, app._qty + d));
+  const el = $('#q'); if (el) el.textContent = app._qty; };
+
+app.pickColor = el => {
+  app._color = el.dataset.v || '';
+  el.parentNode.querySelectorAll('.swatch').forEach(b => b.classList.toggle('on', b === el));
+  const s = $('#c-sel'); if (s) s.textContent = app._color;
+};
+
+app.pickSize = el => {
+  app._size = el.dataset.v || '';
+  el.parentNode.querySelectorAll('.size').forEach(b => b.classList.toggle('on', b === el));
+  const s = $('#sz-sel'); if (s) s.textContent = app._size;
+};
+
+app.galSet = i => {
+  app._photo = i;
+  document.querySelectorAll('#galdots i').forEach((d,k)=>d.classList.toggle('on', k === i));
+  document.querySelectorAll('#thumbs button').forEach((b,k)=>b.classList.toggle('on', k === i));
+};
+
+app.galTo = i => {
+  const g = $('#gal'); if (!g) return;
+  g.scrollTo({left: g.clientWidth * i, behavior: 'smooth'});
+  app.galSet(i);
+};
+
+app.galGo = d => {
+  const g = $('#gal'); if (!g) return;
+  const max = g.children.length - 1;
+  app.galTo(Math.max(0, Math.min(max, app._photo + d)));
+};
+
+app.galScroll = el => {
+  const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+  if (i !== app._photo) app.galSet(i);
+};
+
+app.addVariant = () => {
+  const p = app._p; if (!p) return;
+  const colors = p.colors || [], sizes = p.sizes || [];
+  if (sizes.length && !app._size){ toast('Choisissez d\'abord une taille.'); return; }
+  if (colors.length && !app._color){ toast('Choisissez d\'abord une couleur.'); return; }
+  const variant = [app._color, app._size].filter(Boolean).join(' / ');
+  addToCart(p, app._qty, variant);
+};
+
+/* ---------- panier ---------- */
+
+function viewCart(){
+  if (!cart.length){
+    $('#app').innerHTML = '<h2>🛒 Mon panier</h2>' +
+      '<div class="card empty">Votre panier est vide.<br><br>' +
+      '<button class="btn" onclick="app.go(\'#/home\')">Voir le catalogue</button></div>';
+    return;
+  }
+  const lines = cart.map((l, i) =>
+    '<div class="iline"><div style="flex:1">' +
+      '<b>'+esc(l.name)+'</b>' +
+      (l.variant ? '<div class="muted">🎨 '+esc(l.variant)+'</div>' : '') +
+      '<div class="muted">'+esc(l.store||'')+' · '+fcfa(l.price)+' l\'unité</div></div>' +
+      '<div class="q"><button onclick="app.q('+i+',-1)">−</button>' +
+      '<b style="min-width:22px;text-align:center">'+l.qty+'</b>' +
+      '<button onclick="app.q('+i+',1)">+</button></div>' +
+      '<b style="min-width:86px;text-align:right">'+fcfa(l.price*l.qty)+'</b>' +
+    '</div>').join('');
+
+  const form = user ? (
+    '<h3>Livraison à Bamako</h3>' +
+    '<label>Adresse complète *</label>' +
+    '<input id="f-adr" placeholder="Quartier, rue, repère…" value="'+esc((viewCart.adr)||'')+'">' +
+    '<label>Téléphone *</label>' +
+    '<input id="f-tel" type="tel" placeholder="76 00 00 00" value="'+esc((viewCart.tel)|| (user.phone||''))+'">' +
+    '<label>Note (facultatif)</label>' +
+    '<textarea id="f-note" placeholder="Ex. : livrer après 17 h">'+esc(viewCart.note||'')+'</textarea>' +
+    '<div class="err" id="f-err" style="display:none"></div>' +
+    '<button class="btn" onclick="app.order()">✅ Confirmer la commande — '+fcfa(cartTotal())+'</button>'
+  ) : (
+    '<div class="card center">' +
+      '<div class="muted" style="margin-bottom:8px">Connectez-vous pour passer commande.</div>' +
+      '<button class="btn" onclick="app.needLogin()">🔑 Se connecter</button>' +
+      '<button class="btn ghost" onclick="app.go(\'#/register\')">Créer un compte</button>' +
+    '</div>'
+  );
+
+  $('#app').innerHTML = '<h2>🛒 Mon panier</h2><div class="card">'+lines+
+    '<div class="sep"></div>' +
+    '<div class="iline" style="font-size:16px"><b>Total</b><b style="color:var(--green)">'+fcfa(cartTotal())+'</b></div>' +
+    '</div><div class="card">'+form+'</div>' +
+    '<button class="btn gray" onclick="app.clear()">Vider le panier</button>';
+}
+
+app.q = (i, d) => { const l = cart[i]; if (!l) return;
+  l.qty += d;
+  if (l.qty > l.stock){ l.qty = l.stock; toast('Stock maximum atteint (' + l.stock + ').'); }
+  if (l.qty <= 0){ cart.splice(i, 1); }
+  saveCart(); viewCart(); };
+app.clear = () => { if (confirm('Vider le panier ?')){ cart = []; saveCart(); viewCart(); } };
+app.needLogin = () => { savedHash = '#/cart'; location.hash = '#/login'; };
+
+app.order = async () => {
+  const adr = $('#f-adr').value.trim(), tel = $('#f-tel').value.trim(), note = $('#f-note').value.trim();
+  viewCart.adr = adr; viewCart.tel = tel; viewCart.note = note;
+  const err = $('#f-err');
+  if (adr.length < 5){ err.textContent = 'Indiquez une adresse complète (quartier, rue, repère).'; err.style.display='block'; return; }
+  if (tel.length < 6){ err.textContent = 'Indiquez un numéro de téléphone pour la livraison.'; err.style.display='block'; return; }
+  const btns = document.querySelectorAll('.btn'); btns.forEach(b => b.disabled = true);
+  try{
+    const order = await api('orders', {method:'POST', body:{
+      address: adr, phone: tel, note: note || null,
+      items: cart.map(l => ({product_id: l.id, qty: l.qty, variant: l.variant || null}))
+    }});
+    cart = []; saveCart();
+    toast('✓ Commande ' + order.reference + ' enregistrée !');
+    location.hash = '#/order/' + order.id;
+  }catch(e){
+    err.textContent = e.message; err.style.display = 'block';
+    btns.forEach(b => b.disabled = false);
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+};
+
+/* ---------- mes commandes (client) ---------- */
+
+async function viewOrders(){
+  if (!user){ savedHash = '#/orders'; return location.hash = '#/login'; }
+  $('#app').innerHTML = '<div class="empty">Chargement…</div>';
+  try{
+    const data = await api('orders');
+    if (!data.data || !data.data.length){
+      $('#app').innerHTML = '<h2>📦 Mes commandes</h2><div class="card empty">Aucune commande pour l\'instant.</div>';
+      return;
+    }
+    $('#app').innerHTML = '<h2>📦 Mes commandes</h2>' + data.data.map(o =>
+      '<div class="card" onclick="app.go(\'#/order/'+o.id+'\')">' +
+        '<div class="iline"><b>'+esc(o.reference)+'</b>'+pill(o.status)+'</div>' +
+        '<div class="muted">'+ddate(o.created_at)+' · '+o.items.length+' article(s)</div>' +
+        '<div class="iline" style="border:0"><span class="muted">Total</span><b>'+fcfa(o.total)+'</b></div>' +
+      '</div>').join('');
+  }catch(e){ $('#app').innerHTML = '<div class="card err" style="display:block">'+esc(e.message)+'</div>'; }
+}
+
+async function viewOrder(id){
+  if (!user){ savedHash = '#/orders'; return location.hash = '#/login'; }
+  $('#app').innerHTML = '<div class="empty">Chargement…</div>';
+  let o;
+  try{ o = await api('orders/' + id); }catch(e){
+    $('#app').innerHTML = '<div class="card err" style="display:block">'+esc(e.message)+'</div>'; return; }
+  $('#app').innerHTML =
+    '<a href="#/orders">‹ Mes commandes</a>' +
+    '<div class="card" style="margin-top:8px">' +
+      '<h2 style="margin-top:0">'+esc(o.reference)+'</h2>' +
+      '<div>'+pill(o.status)+'</div>' +
+      '<div class="muted" style="margin-top:6px">Passée le '+ddate(o.created_at)+'</div>' +
+      '<div class="sep"></div>' +
+      o.items.map(it =>
+        '<div class="iline"><span>'+esc(it.product_name)+(it.variant ? ' <span class="muted">· '+esc(it.variant)+'</span>' : '')+' ×'+it.qty+'</span>' +
+        '<b>'+fcfa(it.subtotal)+'</b></div>').join('') +
+      '<div class="iline" style="border:0"><b>Total</b><b style="color:var(--green)">'+fcfa(o.total)+'</b></div>' +
+      '<div class="sep"></div>' +
+      '<h3>Livraison</h3>' +
+      '<div style="font-size:14px; line-height:1.6">📍 '+esc(o.address)+'<br>📞 '+esc(o.phone) +
+      (o.note ? '<br>📝 '+esc(o.note) : '') + '</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<b>Un problème avec cette commande ?</b>' +
+      '<div class="muted" style="margin:4px 0 8px">Produit non conforme, vendeur injoignable, livraison… ' +
+        'Le responsable du marché reçoit votre signalement et peut intervenir.</div>' +
+      '<input id="r-msg" placeholder="Expliquez le problème (5 caractères min.)">' +
+      '<div class="err" id="r-err" style="display:none"></div>' +
+      '<button class="btn ghost" onclick="app.reportOrder('+o.id+')">🚨 Signaler un problème</button>' +
+    '</div>';
+}
+
+app.reportOrder = async id => {
+  const err = $('#r-err'); err.style.display = 'none';
+  const msg = ($('#r-msg').value || '').trim();
+  if (msg.length < 5){ err.textContent = 'Décrivez le problème en quelques mots.'; err.style.display = 'block'; return; }
+  try{
+    await api('orders/' + id + '/report', {method:'POST', body:{message: msg}});
+    toast('✓ Signalement envoyé au responsable du marché.');
+    viewOrder(id);
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+/* ---------- connexion / inscription ---------- */
+
+function viewLogin(){
+  if (user) return location.hash = (user.role === 'admin') ? '#/admin'
+                        : (user.role === 'vendeur') ? '#/vendor' : '#/home';
+  $('#app').innerHTML =
+    '<div class="card center" style="padding:22px 16px">' +
+      '<div style="font-size:52px">🛍️</div>' +
+      '<h2>Marketplace Mali</h2>' +
+      '<div class="muted">La marketplace des vendeurs de Bamako</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<label>Adresse e-mail</label>' +
+      '<input id="l-mail" type="email" placeholder="votre adresse e-mail" autocapitalize="off" autocomplete="username">' +
+      '<label>Mot de passe</label>' +
+      '<input id="l-pass" type="password" placeholder="Votre mot de passe" autocomplete="current-password">' +
+      '<div class="err" id="l-err" style="display:none"></div>' +
+      '<button class="btn" onclick="app.login()">🔑 Se connecter</button>' +
+      '<div class="center" style="margin-top:8px"><a href="#/register">Créer un compte</a></div>' +
+    '</div>' +
+    '<div class="card center">' +
+      '<div class="muted" style="margin-bottom:8px">Faites connaître le marché 📢</div>' +
+      '<button class="btn ghost" onclick="app.share()">📤 Partager (WhatsApp, TikTok…)</button>' +
+      '<button class="btn gray" onclick="app.copyLink()">🔗 Copier le lien</button>' +
+    '</div>';
+  $('#l-mail').focus();
+  $('#l-pass').addEventListener('keydown', e => { if (e.key === 'Enter') app.login(); });
+  $('#l-mail').addEventListener('keydown', e => { if (e.key === 'Enter') $('#l-pass').focus(); });
+}
+
+app.login = async () => {
+  const err = $('#l-err'); err.style.display = 'none';
+  const mail = $('#l-mail').value.trim(), pass = $('#l-pass').value;
+  if (!mail || !pass){ err.textContent = 'Remplissez l\'e-mail et le mot de passe.'; err.style.display='block'; return; }
+  try{
+    const p = await api('login', {method:'POST', body:{email:mail, password:pass}});
+    doLogin(p);
+    toast('✓ Bonjour ' + (user.name || '').split(' ')[0] + ' !');
+    /* Article en attente : on reprend l'achat là où il s'était arrêté. */
+    const reprise = resumePendingCart();
+    /* chaque rôle arrive sur SA propre interface */
+    location.hash = (user.role === 'admin') ? '#/admin'
+                  : (user.role === 'vendeur') ? '#/vendor'
+                  : reprise ? '#/cart'
+                  : (savedHash || '#/home');
+    savedHash = '';
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+function viewRegister(){
+  app._regRole = 'client';
+  $('#app').innerHTML =
+    '<div class="card">' +
+      '<h2 style="margin-top:0">Créer un compte client</h2>' +
+      '<div class="muted" style="margin-bottom:5px">Pour commander sur le marché.</div>' +
+      '<div class="card demo" style="margin:12px 0 4px">🏪 Vous voulez vendre ? ' +
+        'Les comptes vendeurs sont créés uniquement par le responsable du marché. ' +
+        'Contactez-le pour ouvrir votre boutique.</div>' +
+      '<label>Nom complet *</label><input id="r-name" placeholder="Aminata Traoré">' +
+      '<label>Adresse e-mail *</label><input id="r-mail" type="email" placeholder="vous@exemple.com" autocapitalize="off">' +
+      '<label>Téléphone</label><input id="r-tel" type="tel" placeholder="76 00 00 00">' +
+      '<label>Mot de passe * (6 caractères min.)</label><input id="r-pass" type="password">' +
+      '<div class="err" id="r-err" style="display:none"></div>' +
+      '<button class="btn" onclick="app.register()">Créer mon compte</button>' +
+      '<div class="center" style="margin-top:8px"><a href="#/login">J\'ai déjà un compte</a></div>' +
+    '</div>';
+}
+
+app.register = async () => {
+  const err = $('#r-err'); err.style.display = 'none';
+  const name = $('#r-name').value.trim(), mail = $('#r-mail').value.trim(),
+        tel = $('#r-tel').value.trim(), pass = $('#r-pass').value;
+  if (name.length < 2){ err.textContent = 'Indiquez votre nom complet.'; err.style.display='block'; return; }
+  if (!mail.includes('@')){ err.textContent = 'L\'adresse e-mail semble incorrecte.'; err.style.display='block'; return; }
+  if (pass.length < 6){ err.textContent = 'Le mot de passe doit faire au moins 6 caractères.'; err.style.display='block'; return; }
+  try{
+    const p = await api('register', {method:'POST', body:{
+      name, email:mail, password:pass, phone: tel || null, role: 'client'}});
+    doLogin(p);
+    /* Article mis de côté avant la connexion : on le remet dans le panier. */
+    const reprise = resumePendingCart();
+    toast('✓ Compte créé. Bienvenue !');
+    location.hash = reprise ? '#/cart' : '#/home';
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+/* ---------- espace vendeur ---------- */
+
+let vendorSub = null;   // abonnement du vendeur connecté (chargé à chaque visite)
+
+async function viewVendor(parts){
+  if (!user || user.role !== 'vendeur'){ return location.hash = '#/home'; }
+  const sub = parts[0] || 'orders';
+  try{ vendorSub = await api('subscriptions/mine'); }catch(e){ vendorSub = null; }
+  if (sub === 'abonnement') return vendorSubPage();
+  if (sub === 'store')   return vendorStore();
+  if (sub === 'products')return vendorProducts(parts[1]);
+  vendorOrders();
+}
+
+async function vendorOrders(){
+  $('#app').innerHTML = '<div class="empty">Chargement…</div>';
+  let data;
+  try{ data = await api('vendor/orders'); }
+  catch(e){ $('#app').innerHTML = vendorShell('orders', vendorErrCard(e.message)); return; }
+
+  const list = (data.data || []).map(o => {
+    const mine = (o.items || []);
+    const part = mine.reduce((s,it)=>s+it.subtotal, 0);
+    let actions = '';
+    if (o.status === 'en_attente')
+      actions = '<button class="btn small" onclick="app.setStatus('+o.id+',\'confirmee\')">✅ Confirmer</button>' +
+                '<button class="btn small red" onclick="app.setStatus('+o.id+',\'annulee\')">Refuser</button>';
+    else if (o.status === 'confirmee')
+      actions = '<button class="btn small" onclick="app.setStatus('+o.id+',\'livree\')">📦 Marquer livrée</button>' +
+                '<button class="btn small red" onclick="app.setStatus('+o.id+',\'annulee\')">Annuler</button>';
+    return '<div class="card">' +
+      '<div class="iline"><b>'+esc(o.reference)+'</b>'+pill(o.status)+'</div>' +
+      '<div class="muted">👤 '+esc(o.user && o.user.name || 'Client')+
+        (o.user && o.user.phone ? ' · '+esc(o.user.phone) : '')+' · '+ddate(o.created_at)+'</div>' +
+      '<div class="sep"></div>' +
+      mine.map(it => '<div class="iline"><span>'+esc(it.product_name)+(it.variant ? ' <span class="muted">· '+esc(it.variant)+'</span>' : '')+' ×'+it.qty+'</span><b>'+fcfa(it.subtotal)+'</b></div>').join('') +
+      '<div class="iline" style="border:0"><b>Ma part</b><b style="color:var(--green)">'+fcfa(part)+'</b></div>' +
+      (actions ? '<div style="margin-top:8px">'+actions+'</div>' : '') +
+    '</div>';
+  }).join('');
+
+  $('#app').innerHTML = vendorShell('orders',
+    list || '<div class="card empty">Aucune commande reçue pour l\'instant.</div>');
+}
+
+app.setStatus = async (id, status) => {
+  try{
+    await api('vendor/orders/' + id + '/status', {method:'PUT', body:{status}});
+    toast('✓ Commande mise à jour.'); vendorOrders();
+  }catch(e){ toast(e.message); }
+};
+
+async function vendorProducts(editId){
+  if (editId) return vendorProductForm(editId);
+  $('#app').innerHTML = '<div class="empty">Chargement…</div>';
+  let data, cats;
+  try{ data = await api('vendor/products'); cats = await ensureCategories(); }
+  catch(e){ $('#app').innerHTML = vendorShell('products', vendorErrCard(e.message)); return; }
+
+  const list = (data.data || []).map(p =>
+    '<div class="card vrow">' +
+      '<div class="thumb">'+visHTML(p)+'</div>' +
+      '<div class="body">' +
+        '<div class="iline"><b>'+esc(p.name)+'</b>'+(p.is_active?'':'<span class="pill" style="color:#B45309;background:#FEF3C7">masqué</span>')+'</div>' +
+        '<div class="muted">'+esc(p.category ? p.category.name : 'Sans catégorie')+' · '+fcfa(p.price)+' · stock '+p.stock+'</div>' +
+        '<div style="margin-top:8px">' +
+          '<button class="btn small ghost" onclick="app.go(\'#/vendor/products/'+p.id+'\')">✏️ Modifier</button>' +
+          '<button class="btn small red" onclick="app.delProduct('+p.id+')">🗑 Supprimer</button>' +
+        '</div></div></div>').join('');
+
+  $('#app').innerHTML = vendorShell('products',
+    '<button class="btn" onclick="app.go(\'#/vendor/products/new\')">＋ Ajouter un produit</button>' + list);
+}
+
+async function vendorProductForm(id){
+  let cats = [], mine = [];
+  try{
+    cats = await ensureCategories();
+    const data = await api('vendor/products');
+    mine = data.data || [];
+  }catch(e){ toast(e.message); }
+  const p = (id === 'new') ? null : mine.find(x => x.id === Number(id)) || null;
+  const v = p || {name:'', description:'', price:'', stock:'', category_id:null, image:'', colors:[], sizes:[], is_active:true};
+  app._images = (v.photos && v.photos.length) ? v.photos.slice() : (v.image ? [v.image] : []);
+  app._saving  = false;
+  app._vColor  = (v.colors || []).join(', ');
+  app._vSize   = (v.sizes || []).join(', ');
+  $('#app').innerHTML = vendorShell('products',
+    '<div class="card"><h3>'+(p ? 'Modifier « '+esc(p.name)+' »' : 'Nouveau produit')+'</h3>' +
+    '<label>Nom du produit *</label><input id="p-name" value="'+esc(v.name)+'" placeholder="Ex. Pagne wax premium 6 yards">' +
+    '<label>Description</label><textarea id="p-desc" placeholder="Décrivez le produit…">'+esc(v.description||'')+'</textarea>' +
+    '<div class="row2"><div><label>Prix (FCFA) *</label><input id="p-price" type="number" inputmode="numeric" min="0" value="'+esc(v.price)+'"></div>' +
+    '<div><label>Stock *</label><input id="p-stock" type="number" inputmode="numeric" min="0" value="'+esc(v.stock)+'"></div></div>' +
+    '<label>Catégorie</label><select id="p-cat"><option value="">— Choisir —</option>' +
+      cats.map(c => '<option value="'+c.id+'"'+(v.category_id===c.id?' selected':'')+'>'+esc(c.name)+'</option>').join('') +
+    '</select>' +
+
+    '<label style="margin-top:16px">📷 Photos du produit (jusqu\'à 8)</label>' +
+    '<input type="file" id="p-file" accept="image/*" multiple style="display:none" onchange="app.pickImages()">' +
+    '<div class="phgrid" id="p-photos"></div>' +
+    '<button class="btn ghost" onclick="document.getElementById(\'p-file\').click()">📷 Ajouter des photos</button>' +
+    '<div class="muted" style="margin-top:4px">Faites défiler les photos côté client : plusieurs photos = plus de chances de vendre. ' +
+      'La 1ʳᵉ photo est la photo principale. Chaque photo est compressée automatiquement.</div>' +
+
+    '<label style="margin-top:16px">🎨 Couleurs disponibles (vêtements / chaussures)</label>' +
+    '<input id="p-colors" value="'+esc(app._vColor)+'" placeholder="Ex. Rouge, Bleu, Noir" oninput="app.prevColors()">' +
+    '<div class="vari" id="p-colors-prev"></div>' +
+    '<div class="vari" id="p-colors-preset">' +
+      ['Noir','Blanc','Rouge','Bleu','Vert','Jaune','Rose','Marron','Beige','Gris','Orange','Violet']
+        .map(c=>'<button type="button" onclick="app.addColor(\''+c+'\')">+ '+c+'</button>').join('') +
+    '</div>' +
+
+    '<label style="margin-top:16px">📏 Tailles disponibles</label>' +
+    '<input id="p-sizes" value="'+esc(app._vSize)+'" placeholder="Ex. S, M, L, XL  ou  38, 39, 40, 41" oninput="app.prevSizes()">' +
+    '<div class="vari" id="p-sizes-prev"></div>' +
+    '<div class="vari" id="p-sizes-preset">' +
+      ['S','M','L','XL','XXL','36','37','38','39','40','41','42','43','44']
+        .map(s=>'<button type="button" onclick="app.addSize(\''+s+'\')">+ '+s+'</button>').join('') +
+    '</div>' +
+    '<div class="muted" style="margin-top:4px">Laissez vide si le produit n\'a pas de couleurs/tailles.</div>' +
+
+    '<label style="margin-top:14px"><input type="checkbox" id="p-act" style="width:auto" '+(v.is_active?'checked':'')+'> Visible dans le catalogue</label>' +
+    '<div class="err" id="p-err" style="display:none"></div>' +
+    '<button class="btn" id="p-save" onclick="app.saveProduct('+(p?p.id:'null')+')">'+(p?'Enregistrer les modifications':'Créer le produit')+'</button>' +
+    '<button class="btn gray" onclick="app.go(\'#/vendor/products\')">Annuler</button></div>');
+  renderPhotos();
+  app.prevColors();
+  app.prevSizes();
+}
+
+/* ---------- photo produit (compression + envoi) ---------- */
+
+/* Compresse la photo dans le téléphone avant l'envoi :
+   max 1200 px, JPEG qualité 85 % — indispensable sur connexion lente. */
+function compressImage(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Impossible de lire la photo.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Photo illisible.'));
+      img.onload = () => {
+        const MAX = 1200;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX){
+          const k = Math.min(MAX/w, MAX/h); w = Math.round(w*k); h = Math.round(h*k);
+        }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        c.toBlob(b => b ? resolve(b)
+          : reject(new Error('Compression impossible.')), 'image/jpeg', 0.85);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderPhotos(){
+  const box = $('#p-photos'); if (!box) return;
+  const imgs = app._images || [];
+  box.innerHTML = imgs.length
+    ? imgs.map((src, i) =>
+        '<div class="ph">' +
+          '<img src="'+esc(src)+'" alt="Photo '+(i+1)+'">' +
+          (i === 0 ? '<span class="main">Photo principale</span>'
+                   : '<button type="button" class="star" onclick="app.mainImage('+i+')" title="Mettre en première">★</button>') +
+          '<button type="button" class="x" onclick="app.rmImage('+i+')" title="Retirer">✕</button>' +
+        '</div>').join('')
+    : '<div class="muted" style="grid-column:1/-1; padding:14px; text-align:center; border:1.5px dashed var(--line); border-radius:12px">' +
+      'Aucune photo — les clients verront un pictogramme</div>';
+}
+
+app.rmImage = i => { app._images.splice(i, 1); renderPhotos(); };
+app.mainImage = i => { const x = app._images.splice(i, 1)[0]; app._images.unshift(x); renderPhotos(); };
+
+app.pickImages = async () => {
+  const input = $('#p-file');
+  if (!input || !input.files || !input.files.length) return;
+  const err = $('#p-err'); if (err) err.style.display = 'none';
+  const btn = document.getElementById('p-save');
+  const label = btn ? btn.textContent : '';
+  const files = Array.from(input.files).slice(0, Math.max(0, 8 - (app._images || []).length));
+  if (!files.length){ toast('Maximum 8 photos par produit.'); input.value = ''; return; }
+  if (btn){ btn.disabled = true; }
+  try{
+    for (let i = 0; i < files.length; i++){
+      if (btn) btn.textContent = '⏳ Envoi photo '+(i+1)+'/'+files.length+'…';
+      const blob = await compressImage(files[i]);
+      const fd = new FormData();
+      fd.append('image', blob, 'photo.jpg');
+      const r = await api('vendor/image', {method:'POST', body:fd});
+      app._images.push(r.path);
+      renderPhotos();
+    }
+    toast('✓ Photo(s) ajoutée(s).');
+  }catch(e){
+    if (err){ err.textContent = e.message; err.style.display = 'block'; }
+    toast(e.message);
+  }finally{
+    input.value = '';
+    if (btn){ btn.disabled = false; btn.textContent = label; }
+  }
+};
+
+/* ---------- couleurs / tailles ---------- */
+
+function splitList(v){
+  return String(v || '').split(',').map(x => x.trim()).filter(Boolean);
+}
+
+app.addColor = c => {
+  const el = $('#p-colors'); if (!el) return;
+  const list = splitList(el.value);
+  if (!list.some(x => x.toLowerCase() === c.toLowerCase())) list.push(c);
+  el.value = list.join(', ');
+  app.prevColors();
+};
+
+app.addSize = s => {
+  const el = $('#p-sizes'); if (!el) return;
+  const list = splitList(el.value);
+  if (!list.includes(s)) list.push(s);
+  el.value = list.join(', ');
+  app.prevSizes();
+};
+
+app.prevColors = () => {
+  const el = $('#p-colors'), box = $('#p-colors-prev');
+  if (!el || !box) return;
+  const list = splitList(el.value);
+  box.innerHTML = list.map(c =>
+    '<span class="vchip" onclick="app.rmColor(\''+esc(c).replace(/'/g, "\\'")+'\')">' +
+      '<span class="dot" style="background:'+colorHex(c)+'"></span>'+esc(c)+' <b>✕</b></span>').join('');
+};
+
+app.prevSizes = () => {
+  const el = $('#p-sizes'), box = $('#p-sizes-prev');
+  if (!el || !box) return;
+  box.innerHTML = splitList(el.value).map(s =>
+    '<span class="vchip" onclick="app.rmSize(\''+esc(s).replace(/'/g, "\\'")+'\')">'+esc(s)+' <b>✕</b></span>').join('');
+};
+
+app.rmColor = c => {
+  const el = $('#p-colors'); if (!el) return;
+  el.value = splitList(el.value).filter(x => x !== c).join(', ');
+  app.prevColors();
+};
+
+app.rmSize = s => {
+  const el = $('#p-sizes'); if (!el) return;
+  el.value = splitList(el.value).filter(x => x !== s).join(', ');
+  app.prevSizes();
+};
+
+app.saveProduct = async id => {
+  const err = $('#p-err'); err.style.display = 'none';
+  const name = $('#p-name').value.trim(),
+        price = Number($('#p-price').value),
+        stock = Number($('#p-stock').value),
+        cat = $('#p-cat').value ? Number($('#p-cat').value) : null,
+        act = $('#p-act').checked,
+        desc = $('#p-desc').value.trim();
+  if (name.length < 2){ err.textContent = 'Le nom du produit est trop court.'; err.style.display='block'; return; }
+  if (!(price >= 0)){ err.textContent = 'Indiquez un prix valide en FCFA.'; err.style.display='block'; return; }
+  if (!(stock >= 0)){ err.textContent = 'Indiquez un stock valide.'; err.style.display='block'; return; }
+  const body = {name, price: Math.round(price), stock: Math.round(stock),
+                category_id: cat, description: desc || null,
+                image: (app._images && app._images[0]) || null,
+                images: app._images || [],
+                colors: splitList($('#p-colors') ? $('#p-colors').value : ''),
+                sizes: splitList($('#p-sizes') ? $('#p-sizes').value : ''),
+                is_active: act};
+  try{
+    if (id) await api('vendor/products/' + id, {method:'PUT', body});
+    else    await api('vendor/products', {method:'POST', body});
+    toast('✓ Produit enregistré.');
+    location.hash = '#/vendor/products';
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+app.delProduct = async id => {
+  if (!confirm('Supprimer ce produit de votre boutique ?')) return;
+  try{ await api('vendor/products/' + id, {method:'DELETE'});
+       toast('Produit supprimé.'); vendorProducts();
+  }catch(e){ toast(e.message); }
+};
+
+async function vendorStore(){
+  $('#app').innerHTML = '<div class="empty">Chargement…</div>';
+  let store = null;
+  try{ const r = await api('vendor/store'); store = r.store; }
+  catch(e){ $('#app').innerHTML = vendorShell('store', vendorErrCard(e.message)); return; }
+  $('#app').innerHTML = vendorShell('store',
+    '<div class="card"><h3>'+(store ? 'Ma boutique' : 'Créer ma boutique')+'</h3>' +
+    '<label>Nom de la boutique *</label><input id="s-name" value="'+esc(store ? store.name : '')+'" placeholder="Ex. Boutani Fashion">' +
+    '<label>Description</label><textarea id="s-desc">'+esc(store && store.description || '')+'</textarea>' +
+    '<div class="row2"><div><label>Ville</label><input id="s-city" value="'+esc(store && store.city || 'Bamako')+'"></div>' +
+    '<div><label>Téléphone</label><input id="s-tel" value="'+esc(store && store.phone || '')+'"></div></div>' +
+    (store ? '<div class="muted"> Produits en vente : '+(store.products_count != null ? store.products_count : '?')+'</div>' : '') +
+    '<div class="err" id="s-err" style="display:none"></div>' +
+    '<button class="btn" onclick="app.saveStore()">'+(store?'Enregistrer':'Créer la boutique')+'</button></div>');
+}
+
+app.saveStore = async () => {
+  const err = $('#s-err'); err.style.display = 'none';
+  const name = $('#s-name').value.trim();
+  if (name.length < 2){ err.textContent = 'Le nom de la boutique est trop court.'; err.style.display='block'; return; }
+  try{
+    await api('vendor/store', {method:'POST', body:{
+      name, description: $('#s-desc').value.trim() || null,
+      city: $('#s-city').value.trim() || null, phone: $('#s-tel').value.trim() || null}});
+    toast('✓ Boutique enregistrée.'); vendorStore();
+  }catch(e){ err.textContent = e.message; err.style.display='block'; }
+};
+
+const VENDOR_TITLES = {
+  orders:     {t:'📥 Commandes reçues', s:'Les commandes de vos clients'},
+  products:   {t:'🏷️ Mes produits',     s:'Ce que vous vendez sur le marché'},
+  store:      {t:'🏪 Ma boutique',      s:'Vos informations de vendeur'},
+  abonnement: {t:'💳 Mon abonnement',   s:'10 000 FCFA / 30 jours'},
+};
+
+function vendorErrCard(msg){
+  const need = /boutique/i.test(msg);
+  return '<div class="card err" style="display:block">'+esc(msg)+'</div>' +
+    (need ? '<button class="btn" onclick="app.go(\'#/vendor/store\')">🏪 Créer ma boutique</button>' : '');
+}
+
+/* Bandeau d'état d'abonnement, affiché en haut de chaque écran vendeur. */
+function subBanner(){
+  if (!vendorSub) return '';
+  const s = vendorSub.subscription;
+  const plan = vendorSub.plan || {amount:10000, duration_days:30};
+
+  if (!s){
+    return '<div class="card banner-attn">💳 <b>Pas encore d\'abonnement</b> — ' +
+      fcfa(plan.amount)+' / '+plan.duration_days+' jours. ' +
+      '<button class="btn small" onclick="app.go(\'#/vendor/abonnement\')">S\'abonner</button></div>';
+  }
+  if (s.statut === 'actif'){
+    return '<div class="card banner-ok">💳 Abonnement actif · <b>'+s.jours_restants+' jour(s) restant(s)</b>' +
+      ' · jusqu\'au '+ddate(s.ends_at)+'</div>';
+  }
+  if (s.statut === 'paiement_declare'){
+    return '<div class="card banner-attn">💰 <b>Paiement déclaré — en vérification</b> — ' +
+      'le responsable du marché vérifie la réception sur son compte Orange Money. ' +
+      '<button class="btn small" onclick="app.go(\'#/vendor/abonnement\')">Voir</button></div>';
+  }
+  if (s.statut === 'en_attente'){
+    return '<div class="card banner-attn">⏳ <b>Abonnement en attente d\'activation</b> — ' +
+      fcfa(s.amount)+' à régler au responsable. ' +
+      '<button class="btn small" onclick="app.go(\'#/vendor/abonnement\')">Voir</button></div>';
+  }
+  return '<div class="card banner-bad">⛔ <b>Abonnement '+SUBS[s.statut].label.toLowerCase()+'</b> — ' +
+    'vos produits sont masqués du marché. ' +
+    '<button class="btn small" onclick="app.go(\'#/vendor/abonnement\')">Renouveler</button></div>';
+}
+
+function vendorShell(sub, content){
+  const v = VENDOR_TITLES[sub] || VENDOR_TITLES.orders;
+  return '<h2>'+v.t+'</h2><div class="muted" style="margin:-6px 0 12px">'+v.s+'</div>' +
+         subBanner() + content;
+}
+
+/* ---------- page abonnement du vendeur ---------- */
+
+function vendorSubPage(){
+  const data = vendorSub || {};
+  const s    = data.subscription;
+  const plan = data.plan || {amount:10000, duration_days:30};
+  const st   = s ? s.statut : null;
+  const om   = data.orange_money || {};
+
+  let head = '';
+  if (!s){
+    head = '<div class="card banner-attn"><b>Abonnez-vous pour vendre</b><br>' +
+      'Abonnement <b>'+fcfa(plan.amount)+' / '+plan.duration_days+' jours</b>.<br>' +
+      'Cliquez ci-dessous, puis payez par <b>Orange Money</b> au numéro du responsable. ' +
+      'Dès qu\'il vérifie le paiement, votre boutique et vos produits apparaissent sur le marché.</div>';
+  } else if (st === 'actif'){
+    head = '<div class="card banner-ok"><b>Abonnement actif ✅</b><br>' +
+      'Du '+ddate(s.starts_at)+' au '+ddate(s.ends_at)+'<br>' +
+      '<b>'+s.jours_restants+' jour(s) restant(s)</b> · '+fcfa(s.amount)+'</div>';
+  } else if (st === 'paiement_declare'){
+    head = '<div class="card banner-attn"><b>Paiement déclaré — en vérification 💰</b><br>' +
+      'Montant : <b>'+fcfa(s.amount)+'</b> · Durée : '+s.duration_days+' jours<br>' +
+      'Le responsable du marché vérifie la réception sur son compte Orange Money, ' +
+      'puis active votre abonnement.<br>' +
+      '<span class="muted">Vos produits sont masqués du marché en attendant.</span></div>';
+  } else if (st === 'en_attente'){
+    head = '<div class="card banner-attn"><b>En attente de paiement ⏳</b><br>' +
+      'Montant : <b>'+fcfa(s.amount)+'</b> · Durée : '+s.duration_days+' jours<br>' +
+      'Demande du '+ddate(s.created_at)+'.<br>' +
+      '<span class="muted">Payez par Orange Money ci-dessous, puis déclarez votre paiement.</span></div>';
+  } else {
+    head = '<div class="card banner-bad"><b>Abonnement '+SUBS[st].label.toLowerCase()+'</b><br>' +
+      (s.ends_at ? 'Il s\'est terminé le '+ddate(s.ends_at)+'.<br>' : '') +
+      'Vos produits sont masqués du marché. Renouvelez pour réapparaître.</div>';
+  }
+
+  const peutDemander = !s || st === 'expire' || st === 'desactive';
+  const btn = peutDemander
+    ? '<button class="btn" onclick="app.demanderAbo()">💳 ' +
+      (s ? 'Demander le renouvellement' : 'Demander l\'abonnement') +
+      ' — '+fcfa(plan.amount)+'</button>'
+    : '';
+
+  // Paiement Orange Money : dès qu'une demande est en cours.
+  let pay = '';
+  if (s && (st === 'en_attente' || st === 'paiement_declare')){
+    pay = payCard(s, om, data.paiement);
+  }
+  // Renouvellement : le vendeur peut déjà payer sans attendre.
+  if (!s || st === 'expire' || st === 'desactive'){
+    pay = '<div class="card demo">💡 Après votre demande, le numéro Orange Money du responsable ' +
+      'et le formulaire de paiement s\'affichent ici.</div>';
+  }
+
+  const events = s ? timeline(s.events) : '';
+
+  $('#app').innerHTML =
+    '<h2>💳 Mon abonnement</h2>' +
+    '<div class="muted" style="margin:-6px 0 12px">Abonnement vendeur : ' +
+      fcfa(plan.amount)+' / '+plan.duration_days+' jours · paiement Orange Money</div>' +
+    subBanner() +
+    head + btn + pay +
+    (s ? '<div class="card"><b>Suivi pas à pas</b>' +
+         (events || '<div class="muted">Aucun événement.</div>') + '</div>' : '') +
+    (!data.store ? '<div class="card demo">🏪 Créez votre boutique maintenant pour être prêt ' +
+      'dès l\'activation. <button class="btn small ghost" ' +
+      'onclick="app.go(\'#/vendor/store\')">Créer ma boutique</button></div>' : '');
+}
+
+/* ---------- paiement Orange Money ---------- */
+
+function fmtPhone(n){
+  const d = String(n || '').replace(/\D/g, '');
+  if (d.length === 8) return d.slice(0,2)+' '+d.slice(2,4)+' '+d.slice(4,6)+' '+d.slice(6,8);
+  return String(n || '');
+}
+
+function payCard(s, om, pmt){
+  const num = (om && om.number) ? String(om.number).replace(/\D/g, '') : '';
+  const disp = fmtPhone(num);
+
+  if (!num){
+    return '<div class="card banner-attn"><b>💳 Paiement Orange Money</b><br>' +
+      'Le responsable du marché n\'a pas encore renseigné son numéro Orange Money. ' +
+      'Contactez-le directement pour régler l\'abonnement.</div>';
+  }
+
+  const deja = pmt && pmt.en_verification;
+  const recu = pmt && pmt.confirmed_at;
+
+  if (deja){
+    return '<div class="card banner-attn">' +
+        '<b>💰 Paiement déclaré — en vérification</b><br>' +
+        'Payé par <b>'+esc(pmt.payer_name)+'</b> · 📞 '+esc(pmt.payer_phone)+'<br>' +
+        (pmt.payment_ref ? 'ID transaction : <b>'+esc(pmt.payment_ref)+'</b><br>' : '') +
+        'Déclaré le '+ddate(pmt.declared_at)+'.<br>' +
+        '<span class="muted">Le responsable vérifie sur son compte Orange Money, puis active votre boutique.</span>' +
+      '</div>' +
+      '<div class="card"><b>Corriger le paiement déclaré</b>' +
+        payForm(s, disp) +
+      '</div>';
+  }
+
+  if (recu){
+    return '<div class="card banner-ok">✅ <b>Paiement Orange Money confirmé</b> le '+ddate(pmt.confirmed_at)+'</div>';
+  }
+
+  return '<div class="card">' +
+      '<b>💳 Payer par Orange Money</b>' +
+      '<div class="om-box">' +
+        '<div class="muted">Envoyez <b>'+fcfa(s.amount)+'</b> à ce numéro Orange Money :</div>' +
+        '<div class="om-num">'+disp+'</div>' +
+        (om.name ? '<div class="muted">Au nom de <b>'+esc(om.name)+'</b></div>' : '') +
+        '<button class="btn small ghost" onclick="app.copyOM()">📋 Copier le numéro</button>' +
+      '</div>' +
+      '<ol class="om-steps">' +
+        '<li>Ouvrez <b>Orange Money</b> (ou composez <b>#144#</b>).</li>' +
+        '<li>Choisissez <b>Transfert d\'argent</b> → envoyez <b>'+fcfa(s.amount)+'</b> au <b>'+disp+'</b>.</li>' +
+        '<li>Gardez le <b>nom</b>, le <b>numéro</b> et l\'<b>ID de transaction</b> du reçu.</li>' +
+        '<li>Remplissez le formulaire : le responsable vérifie et active votre abonnement.</li>' +
+      '</ol>' +
+      '<div class="sep"></div>' +
+      '<b>Qui a payé ?</b>' +
+      payForm(s, disp) +
+    '</div>';
+}
+
+function payForm(s, disp){
+  return '<label>Nom de la personne qui a payé *</label>' +
+    '<input id="pay-name" value="'+esc((user && user.name) || '')+'" placeholder="Ex. Lassine Togo">' +
+    '<label>Numéro Orange Money utilisé *</label>' +
+    '<input id="pay-phone" type="tel" inputmode="tel" placeholder="Ex. 94 50 36 05">' +
+    '<label>ID de transaction (sur le reçu)</label>' +
+    '<input id="pay-ref" placeholder="Ex. 123456789">' +
+    '<div class="err" id="pay-err" style="display:none"></div>' +
+    '<button class="btn" onclick="app.declarerPaiement()">💰 J\'ai payé — envoyer la preuve</button>' +
+    '<div class="muted" style="margin-top:4px">Montant : <b>'+fcfa(s.amount)+'</b> · Numéro du marché : <b>'+disp+'</b></div>';
+}
+
+app.copyOM = () => {
+  const om = (vendorSub && vendorSub.orange_money) || {};
+  const num = String(om.number || '').replace(/\D/g, '');
+  if (!num) return toast('Numéro Orange Money non renseigné.');
+  const fait = () => toast('✓ Numéro '+fmtPhone(num)+' copié.');
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(num).then(fait).catch(() => oldCopy(num, fait));
+  } else oldCopy(num, fait);
+};
+
+app.declarerPaiement = async () => {
+  const err = $('#pay-err'); if (err) err.style.display = 'none';
+  const name  = ($('#pay-name').value || '').trim();
+  const phone = ($('#pay-phone').value || '').trim();
+  const ref   = ($('#pay-ref').value || '').trim();
+  if (name.length < 2){ if (err){ err.textContent = 'Indiquez le nom de la personne qui a payé.'; err.style.display='block'; } return; }
+  if (phone.replace(/\D/g, '').length < 6){ if (err){ err.textContent = 'Indiquez le numéro Orange Money utilisé.'; err.style.display='block'; } return; }
+  try{
+    await api('subscriptions/pay', {method:'POST', body:{
+      payer_name: name, payer_phone: phone, payment_ref: ref || null}});
+    toast('✓ Paiement déclaré — le responsable va vérifier.');
+    vendorSub = await api('subscriptions/mine');
+    vendorSubPage();
+  }catch(e){
+    if (err){ err.textContent = e.message; err.style.display = 'block'; }
+  }
+};
+
+app.demanderAbo = async () => {
+  try{
+    await api('subscriptions/request', {method:'POST', body:{}});
+    toast('✓ Demande envoyée au responsable du marché.');
+    vendorSub = await api('subscriptions/mine');
+    vendorSubPage();
+  }catch(e){ toast(e.message); }
+};
+
+/* ---------- interface du responsable du marché (admin) ---------- */
+
+const ROLES = {
+  client:  {label:'Cliente / Client', color:'#1D4ED8', bg:'#DBEAFE'},
+  vendeur: {label:'Vendeur / Vendeuse', color:'#15803D', bg:'#DCFCE7'},
+  admin:   {label:'Responsable', color:'#B45309', bg:'#FEF3C7'},
+};
+
+function rolePill(r){
+  const s = ROLES[r] || {label:r, color:'#555', bg:'#EEE'};
+  return '<span class="pill" style="color:'+s.color+';background:'+s.bg+'">'+s.label+'</span>';
+}
+
+const adminList = { items:[], page:1, last:1, search:'' };
+
+async function viewAdmin(parts){
+  if (!user || user.role !== 'admin'){ return location.hash = '#/home'; }
+  if (parts[0] === 'vendor')       return adminVendorForm();
+  if (parts[0] === 'profile')      return adminProfile();
+  if (parts[0] === 'abonnements')  return adminSubs();
+  if (parts[0] === 'sub')          return adminSubDetail(parts[1]);
+  if (parts[0] === 'commandes')    return adminOrders();
+  if (parts[0] === 'produits')     return adminProducts();
+  if (parts[0] === 'signalements') return adminReports();
+  adminUsers();
+}
+
+async function adminUsers(){
+  $('#app').innerHTML = '<div class="empty">Chargement des personnes…</div>';
+  let stats, data;
+  try{
+    stats = await api('admin/stats');
+    data  = await api('admin/users?page=1');
+  }catch(e){
+    $('#app').innerHTML = '<h2>👥 Personnes du marché</h2>' +
+      '<div class="card err" style="display:block">'+esc(e.message)+'</div>';
+    return;
+  }
+  adminList.items = data.data || []; adminList.last = data.last_page || 1; adminList.page = 1;
+
+  $('#app').innerHTML =
+    '<h2>👥 Personnes du marché</h2>' +
+    '<div class="stats">' +
+      '<div class="st"><b>'+stats.users+'</b><span>personnes</span></div>' +
+      '<div class="st"><b>'+stats.clients+'</b><span>clientes</span></div>' +
+      '<div class="st"><b>'+stats.vendors+'</b><span>vendeurs</span></div>' +
+      '<div class="st"><b>'+stats.products+'</b><span>produits</span></div>' +
+      '<div class="st"><b>'+stats.orders+'</b><span>commandes</span></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:10px">' +
+      '<button class="btn small ghost" style="flex:1" onclick="app.go(\'#/admin/vendor\')">➕ Créer un vendeur</button>' +
+      '<button class="btn small '+(stats.reports_new ? 'red' : 'gray')+'" style="flex:1" onclick="app.go(\'#/admin/signalements\')">🚨 Signalements' +
+        (stats.reports_new ? ' ('+stats.reports_new+')' : '') + '</button>' +
+    '</div>' +
+    (stats.blocked ? '<div class="muted" style="margin:-4px 0 10px">⛔ '+stats.blocked+' compte(s) bloqué(s)</div>' : '') +
+    (stats.subs_to_verify
+      ? '<button class="btn red" style="width:100%;margin-bottom:10px" onclick="app.go(\'#/admin/abonnements\')">💰 ' +
+        stats.subs_to_verify+' paiement(s) Orange Money à vérifier</button>'
+      : '') +
+    '<div class="search"><input id="a-q" type="search" placeholder="🔍 Rechercher (nom, e-mail, téléphone)…"' +
+    ' value="'+esc(adminList.search)+'" oninput="app.searchUsers(this.value)"></div>' +
+    '<div id="a-list"></div>' +
+    '<button class="btn ghost" id="a-more" style="display:none" onclick="app.moreUsers()">Charger plus</button>';
+  renderUserList();
+}
+
+function renderUserList(){
+  const list = adminList.items.map(u => {
+    const estVendeur = u.role === 'vendeur';
+    const estAdmin   = u.role === 'admin';
+    const detail = estAdmin ? 'Responsable du marché'
+      : estVendeur ? '🏪 ' + (u.store && u.store.name || 'sans boutique')
+      : '📦 ' + u.orders_count + ' commande(s)';
+    let actions = '';
+    // État de l'abonnement (vendeurs uniquement)
+    const sub = estVendeur ? u.latest_subscription : null;
+    const subLine = estVendeur
+      ? (sub
+          ? '<div class="muted" style="margin-top:4px">💳 '+subPill(sub.statut) +
+            (sub.statut === 'actif' && sub.jours_restants != null
+              ? ' <span class="muted">'+sub.jours_restants+' j restant(s)</span>' : '') +
+            (sub.ends_at ? ' <span class="muted">· fin '+ddate(sub.ends_at)+'</span>' : '') +
+            '</div>'
+          : '<div class="muted" style="margin-top:4px">💳 '+subPill('en_attente')+'</div>')
+      : '';
+
+    if (!estAdmin){
+      if (u.blocked_at){
+        actions = '<button class="btn small" onclick="app.unblockUser('+u.id+')">🔓 Débloquer</button>';
+        if (estVendeur) actions += '<button class="btn small ghost" onclick="app.go(\'#/admin/sub/'+(sub?sub.id:'')+'\')">💳 Abonnement</button>';
+      } else {
+        actions = (estVendeur
+          ? '<button class="btn small ghost" onclick="app.go(\'#/admin/sub/'+(sub?sub.id:'')+'\')">💳 Abonnement</button>' +
+            '<button class="btn small gray" onclick="app.setRole('+u.id+',\'client\')">→ Repasser client</button>'
+          : '<button class="btn small ghost" onclick="app.setRole('+u.id+',\'vendeur\')">→ Devenir vendeur</button>' +
+            '<button class="btn small red" onclick="app.delUser('+u.id+')">🗑 Supprimer</button>'
+        ) +
+        '<button class="btn small red" onclick="app.blockUser('+u.id+')">⛔ Bloquer</button>';
+      }
+    }
+    return '<div class="card">' +
+      '<div class="iline"><b>'+esc(u.name)+'</b><span>'+rolePill(u.role) +
+        (u.blocked_at ? ' <span class="pill" style="color:#B91C1C;background:#FEE2E2">⛔ Bloqué</span>' : '') +
+      '</span></div>' +
+      '<div class="muted">'+esc(u.email)+(u.phone ? ' · 📞 '+esc(u.phone) : '')+'</div>' +
+      '<div class="muted">'+detail+' · inscrite le '+ddate(u.created_at)+'</div>' +
+      (u.blocked_at && u.blocked_reason ? '<div class="muted" style="color:var(--red)">Motif : '+esc(u.blocked_reason)+'</div>' : '') +
+      subLine +
+      (actions ? '<div style="margin-top:8px">'+actions+'</div>' : '') +
+    '</div>';
+  }).join('');
+
+  $('#a-list').innerHTML = list ||
+    '<div class="card empty">Aucune personne ne correspond à cette recherche.</div>';
+  const more = $('#a-more'); if (more) more.style.display =
+    (adminList.page < adminList.last) ? 'block' : 'none';
+}
+
+app.searchUsers = s => {
+  clearTimeout(app._at);
+  app._at = setTimeout(async () => {
+    adminList.search = s.trim(); adminList.page = 1;
+    try{
+      const params = new URLSearchParams({page: 1});
+      if (adminList.search) params.set('search', adminList.search);
+      const data = await api('admin/users?' + params.toString());
+      adminList.items = data.data || []; adminList.last = data.last_page || 1;
+      renderUserList();
+    }catch(e){ toast(e.message); }
+  }, 350);
+};
+
+app.moreUsers = async () => {
+  try{
+    adminList.page++;
+    const params = new URLSearchParams({page: adminList.page});
+    if (adminList.search) params.set('search', adminList.search);
+    const data = await api('admin/users?' + params.toString());
+    adminList.items = adminList.items.concat(data.data || []);
+    renderUserList();
+  }catch(e){ toast(e.message); }
+};
+
+app.setRole = async (id, role) => {
+  try{
+    await api('admin/users/' + id + '/role', {method:'PUT', body:{role}});
+    toast('✓ Rôle mis à jour.');
+    adminUsers();
+  }catch(e){ toast(e.message); }
+};
+
+app.delUser = async id => {
+  if (!confirm('Supprimer cette personne ? Sa boutique, ses produits et ses commandes seront aussi supprimés.')) return;
+  try{
+    await api('admin/users/' + id, {method:'DELETE'});
+    toast('✓ Compte supprimé.');
+    adminUsers();
+  }catch(e){ toast(e.message); }
+};
+
+/* ---------- contrôle du marché : tout voir, intervenir, bloquer ---------- */
+
+app.blockUser = async id => {
+  const reason = prompt('Motif du blocage (facultatif) :\nEx. produit non conforme, arnaque, insultes…');
+  if (reason === null) return;   // annulé
+  try{
+    await api('admin/users/' + id + '/block', {method:'POST', body:{reason: reason.trim() || null}});
+    toast('⛔ Compte bloqué — accès coupé immédiatement.');
+    adminUsers();
+  }catch(e){ toast(e.message); }
+};
+
+app.unblockUser = async id => {
+  if (!confirm('Débloquer ce compte ? La personne pourra se reconnecter.')) return;
+  try{
+    await api('admin/users/' + id + '/unblock', {method:'POST', body:{}});
+    toast('✓ Compte débloqué.');
+    adminUsers();
+  }catch(e){ toast(e.message); }
+};
+
+function controlShell(active, reportsNew){
+  return '<h2>🛡️ Contrôle du marché</h2>' +
+    '<div class="muted" style="margin:-6px 0 10px">Vous voyez tout et pouvez intervenir à tout moment.</div>' +
+    '<div class="seg">' +
+      '<button class="'+(active==='commandes'?'on':'')+'" onclick="app.go(\'#/admin/commandes\')">📦 Commandes</button>' +
+      '<button class="'+(active==='produits'?'on':'')+'" onclick="app.go(\'#/admin/produits\')">🏷️ Produits</button>' +
+      '<button class="'+(active==='signalements'?'on':'')+'" onclick="app.go(\'#/admin/signalements\')">🚨 Problèmes' +
+        (reportsNew ? ' ('+reportsNew+')' : '') + '</button>' +
+    '</div>';
+}
+
+/* ----- toutes les commandes ----- */
+
+const adminOrdersList = { items:[], page:1, last:1, status:'tous', search:'' };
+
+async function adminOrders(){
+  if (!user || user.role !== 'admin') return location.hash = '#/home';
+  $('#app').innerHTML = '<div class="empty">Chargement des commandes…</div>';
+  let data, stats;
+  try{
+    data  = await api('admin/orders?status=' + adminOrdersList.status);
+    stats = await api('admin/stats');
+  }catch(e){
+    $('#app').innerHTML = '<h2>🛡️ Contrôle du marché</h2>' +
+      '<div class="card err" style="display:block">'+esc(e.message)+'</div>'; return;
+  }
+  adminOrdersList.items = data.data || [];
+  adminOrdersList.last  = data.last_page || 1;
+  adminOrdersList.page  = 1;
+
+  $('#app').innerHTML = controlShell('commandes', stats.reports_new) +
+    '<div class="seg" style="background:#fff; border:1.5px solid var(--line)">' +
+      [['tous','Toutes'],['en_attente','En attente'],['confirmee','Confirmées'],['livree','Livrées'],['annulee','Annulées']]
+        .map(([k,l]) => '<button class="'+(adminOrdersList.status===k?'on':'')+'" onclick="app.orderFilter(\''+k+'\')">'+l+'</button>').join('') +
+    '</div>' +
+    '<div class="search"><input id="o-q" type="search" placeholder="🔍 Référence, client, produit…" value="'+esc(adminOrdersList.search)+'" oninput="app.searchAdminOrders(this.value)"></div>' +
+    '<div id="o-list"></div>' +
+    '<button class="btn ghost" id="o-more" style="display:none" onclick="app.moreAdminOrders()">Charger plus</button>';
+  renderAdminOrders();
+}
+
+function renderAdminOrders(){
+  const list = adminOrdersList.items.map(o => {
+    const u = o.user || {};
+    const vendors = [...new Set((o.items || []).map(it => it.store && it.store.name).filter(Boolean))];
+    let acts = '';
+    if (o.status === 'en_attente'){
+      acts = '<button class="btn small" onclick="app.adminOrderStatus('+o.id+',\'confirmee\')">✅ Confirmer</button>' +
+             '<button class="btn small red" onclick="app.adminOrderStatus('+o.id+',\'annulee\')">🛑 Annuler</button>';
+    } else if (o.status === 'confirmee'){
+      acts = '<button class="btn small ghost" onclick="app.adminOrderStatus('+o.id+',\'livree\')">📦 Marquer livrée</button>' +
+             '<button class="btn small red" onclick="app.adminOrderStatus('+o.id+',\'annulee\')">🛑 Annuler</button>';
+    }
+    return '<div class="card">' +
+      '<div class="iline"><b>'+esc(o.reference)+'</b>'+pill(o.status)+'</div>' +
+      '<div class="muted">👤 '+esc(u.name || 'Client')+(u.phone ? ' · 📞 '+esc(u.phone) : '')+'</div>' +
+      '<div class="muted">'+ddate(o.created_at)+' · '+fcfa(o.total)+'</div>' +
+      (vendors.length ? '<div class="muted">🏪 '+esc(vendors.join(', '))+'</div>' : '') +
+      '<div style="margin-top:6px">' + (o.items || []).map(it =>
+        '<div class="muted">• '+esc(it.product_name)+(it.variant ? ' ('+esc(it.variant)+')' : '')+' ×'+it.qty+' — '+fcfa(it.subtotal)+'</div>').join('') +
+      '</div>' +
+      '<div class="muted" style="margin-top:6px">📍 '+esc(o.address || '')+'</div>' +
+      (acts ? '<div style="margin-top:8px">'+acts+'</div>' : '') +
+    '</div>';
+  }).join('');
+  $('#o-list').innerHTML = list || '<div class="card empty">Aucune commande dans cette catégorie.</div>';
+  const more = $('#o-more');
+  if (more) more.style.display = (adminOrdersList.page < adminOrdersList.last) ? 'block' : 'none';
+}
+
+app.orderFilter = s => { adminOrdersList.status = s; adminOrdersList.page = 1; adminOrders(); };
+
+app.searchAdminOrders = s => {
+  clearTimeout(app._ot);
+  app._ot = setTimeout(async () => {
+    adminOrdersList.search = s.trim(); adminOrdersList.page = 1;
+    try{
+      const p = new URLSearchParams({status: adminOrdersList.status, page: 1});
+      if (adminOrdersList.search) p.set('search', adminOrdersList.search);
+      const data = await api('admin/orders?' + p.toString());
+      adminOrdersList.items = data.data || []; adminOrdersList.last = data.last_page || 1;
+      renderAdminOrders();
+    }catch(e){ toast(e.message); }
+  }, 350);
+};
+
+app.moreAdminOrders = async () => {
+  try{
+    adminOrdersList.page++;
+    const p = new URLSearchParams({status: adminOrdersList.status, page: adminOrdersList.page});
+    if (adminOrdersList.search) p.set('search', adminOrdersList.search);
+    const data = await api('admin/orders?' + p.toString());
+    adminOrdersList.items = adminOrdersList.items.concat(data.data || []);
+    adminOrdersList.last = data.last_page || 1;
+    renderAdminOrders();
+  }catch(e){ toast(e.message); }
+};
+
+app.adminOrderStatus = async (id, status) => {
+  if (status === 'annulee' && !confirm('Annuler cette commande ?')) return;
+  try{
+    await api('admin/orders/' + id + '/status', {method:'PUT', body:{status}});
+    toast('✓ Commande mise à jour.');
+    adminOrders();
+  }catch(e){ toast(e.message); }
+};
+
+/* ----- tous les produits ----- */
+
+const adminProductsList = { items:[], page:1, last:1, search:'' };
+
+async function adminProducts(){
+  if (!user || user.role !== 'admin') return location.hash = '#/home';
+  $('#app').innerHTML = '<div class="empty">Chargement des produits…</div>';
+  let data, stats;
+  try{
+    data  = await api('admin/products');
+    stats = await api('admin/stats');
+  }catch(e){
+    $('#app').innerHTML = '<h2>🛡️ Contrôle du marché</h2>' +
+      '<div class="card err" style="display:block">'+esc(e.message)+'</div>'; return;
+  }
+  adminProductsList.items = data.data || [];
+  adminProductsList.last  = data.last_page || 1;
+  adminProductsList.page  = 1;
+
+  $('#app').innerHTML = controlShell('produits', stats.reports_new) +
+    '<div class="search"><input id="ap-q" type="search" placeholder="🔍 Produit ou boutique…" value="'+esc(adminProductsList.search)+'" oninput="app.searchAdminProducts(this.value)"></div>' +
+    '<div id="ap-list"></div>' +
+    '<button class="btn ghost" id="ap-more" style="display:none" onclick="app.moreAdminProducts()">Charger plus</button>';
+  renderAdminProducts();
+}
+
+function renderAdminProducts(){
+  const list = adminProductsList.items.map(p =>
+    '<div class="card vrow">' +
+      '<div class="thumb">'+visHTML(p)+'</div>' +
+      '<div class="body">' +
+        '<div class="iline"><b>'+esc(p.name)+'</b>' +
+          (p.is_active ? '' : '<span class="pill" style="color:#B45309;background:#FEF3C7">masqué</span>') + '</div>' +
+        '<div class="muted">🏪 '+esc(p.store && p.store.name || '—')+' · '+fcfa(p.price)+' · stock '+p.stock+'</div>' +
+        '<div style="margin-top:8px">' +
+          '<button class="btn small '+(p.is_active?'gray':'ghost')+'" onclick="app.adminToggleProduct('+p.id+','+(p.is_active?'false':'true')+')">' +
+            (p.is_active ? '🙈 Masquer du marché' : '👁 Réafficher') + '</button>' +
+          '<button class="btn small red" onclick="app.adminDelProduct('+p.id+')">🗑 Retirer</button>' +
+        '</div>' +
+      '</div></div>').join('');
+  $('#ap-list').innerHTML = list || '<div class="card empty">Aucun produit.</div>';
+  const more = $('#ap-more');
+  if (more) more.style.display = (adminProductsList.page < adminProductsList.last) ? 'block' : 'none';
+}
+
+app.searchAdminProducts = s => {
+  clearTimeout(app._pt);
+  app._pt = setTimeout(async () => {
+    adminProductsList.search = s.trim(); adminProductsList.page = 1;
+    try{
+      const p = new URLSearchParams({page: 1});
+      if (adminProductsList.search) p.set('search', adminProductsList.search);
+      const data = await api('admin/products?' + p.toString());
+      adminProductsList.items = data.data || []; adminProductsList.last = data.last_page || 1;
+      renderAdminProducts();
+    }catch(e){ toast(e.message); }
+  }, 350);
+};
+
+app.moreAdminProducts = async () => {
+  try{
+    adminProductsList.page++;
+    const p = new URLSearchParams({page: adminProductsList.page});
+    if (adminProductsList.search) p.set('search', adminProductsList.search);
+    const data = await api('admin/products?' + p.toString());
+    adminProductsList.items = adminProductsList.items.concat(data.data || []);
+    adminProductsList.last = data.last_page || 1;
+    renderAdminProducts();
+  }catch(e){ toast(e.message); }
+};
+
+app.adminToggleProduct = async (id, active) => {
+  try{
+    await api('admin/products/' + id + '/visibility', {method:'PUT', body:{is_active: active}});
+    toast(active ? '✓ Produit réaffiché.' : '✓ Produit masqué du marché.');
+    adminProducts();
+  }catch(e){ toast(e.message); }
+};
+
+app.adminDelProduct = async id => {
+  if (!confirm('Retirer définitivement ce produit du marché ?')) return;
+  try{
+    await api('admin/products/' + id, {method:'DELETE'});
+    toast('✓ Produit retiré.');
+    adminProducts();
+  }catch(e){ toast(e.message); }
+};
+
+/* ----- signalements clients ----- */
+
+const adminReportsList = { items:[], page:1, last:1, status:'tous' };
+
+async function adminReports(){
+  if (!user || user.role !== 'admin') return location.hash = '#/home';
+  $('#app').innerHTML = '<div class="empty">Chargement des signalements…</div>';
+  let data, stats;
+  try{
+    data  = await api('admin/reports?status=' + adminReportsList.status);
+    stats = await api('admin/stats');
+  }catch(e){
+    $('#app').innerHTML = '<h2>🛡️ Contrôle du marché</h2>' +
+      '<div class="card err" style="display:block">'+esc(e.message)+'</div>'; return;
+  }
+  adminReportsList.items = data.data || [];
+  adminReportsList.last  = data.last_page || 1;
+  adminReportsList.page  = 1;
+
+  $('#app').innerHTML = controlShell('signalements', stats.reports_new) +
+    '<div class="seg" style="background:#fff; border:1.5px solid var(--line)">' +
+      '<button class="'+(adminReportsList.status==='tous'?'on':'')+'" onclick="app.reportFilter(\'tous\')">Tous</button>' +
+      '<button class="'+(adminReportsList.status==='nouveau'?'on':'')+'" onclick="app.reportFilter(\'nouveau\')">À traiter</button>' +
+      '<button class="'+(adminReportsList.status==='traite'?'on':'')+'" onclick="app.reportFilter(\'traite\')">Traités</button>' +
+    '</div>' +
+    '<div id="r-list"></div>' +
+    '<button class="btn ghost" id="r-more" style="display:none" onclick="app.moreReports()">Charger plus</button>';
+  renderAdminReports();
+}
+
+function renderAdminReports(){
+  const list = adminReportsList.items.map(r => {
+    const u = r.user || {}, s = r.store || {}, v = s.user || {};
+    let acts = '';
+    if (r.status === 'nouveau'){
+      if (v.id) acts += '<button class="btn small red" onclick="app.blockUser('+v.id+')">⛔ Bloquer le vendeur</button>';
+      if (r.order && r.order.status !== 'annulee')
+        acts += '<button class="btn small gray" onclick="app.adminOrderStatus('+r.order.id+',\'annulee\')">🛑 Annuler la commande</button>';
+      acts += '<button class="btn small ghost" onclick="app.resolveReport('+r.id+')">✅ Marquer traité</button>';
+    }
+    return '<div class="card">' +
+      '<div class="iline"><b>🚨 '+esc(u.name || 'Client')+'</b>' +
+        (r.status === 'nouveau'
+          ? '<span class="pill" style="color:#B91C1C;background:#FEE2E2">À traiter</span>'
+          : '<span class="pill" style="color:#15803D;background:#DCFCE7">Traité</span>') +
+      '</div>' +
+      '<div class="muted">🏪 '+esc(s.name || 'Boutique inconnue')+(v.name ? ' · vendeur : '+esc(v.name) : '')+'</div>' +
+      (v.blocked_at ? '<div class="muted" style="color:var(--red)">⛔ Vendeur bloqué</div>' : '') +
+      (r.order ? '<div class="muted">📦 '+esc(r.order.reference)+' · '+fcfa(r.order.total)+' · '+pill(r.order.status)+'</div>' : '') +
+      '<div class="demo" style="margin-top:8px">'+esc(r.message)+'</div>' +
+      '<div class="muted" style="margin-top:6px">Signalé le '+ddate(r.created_at)+'</div>' +
+      (acts ? '<div style="margin-top:8px">'+acts+'</div>' : '') +
+    '</div>';
+  }).join('');
+  $('#r-list').innerHTML = list || '<div class="card empty">Aucun signalement. 👍</div>';
+  const more = $('#r-more');
+  if (more) more.style.display = (adminReportsList.page < adminReportsList.last) ? 'block' : 'none';
+}
+
+app.reportFilter = s => { adminReportsList.status = s; adminReportsList.page = 1; adminReports(); };
+
+app.moreReports = async () => {
+  try{
+    adminReportsList.page++;
+    const data = await api('admin/reports?status=' + adminReportsList.status + '&page=' + adminReportsList.page);
+    adminReportsList.items = adminReportsList.items.concat(data.data || []);
+    adminReportsList.last = data.last_page || 1;
+    renderAdminReports();
+  }catch(e){ toast(e.message); }
+};
+
+app.resolveReport = async id => {
+  try{
+    await api('admin/reports/' + id + '/resolve', {method:'PUT', body:{}});
+    toast('✓ Signalement marqué comme traité.');
+    adminReports();
+  }catch(e){ toast(e.message); }
+};
+
+/* ---------- abonnements vendeurs (côté responsable) ---------- */
+
+const adminSubsList = { items:[], page:1, last:1, filter:'tous', search:'' };
+
+async function adminSubs(){
+  if (!user || user.role !== 'admin') return location.hash = '#/home';
+  $('#app').innerHTML = '<div class="empty">Chargement des abonnements…</div>';
+  let stats, data;
+  try{
+    stats = await api('admin/stats');
+    data  = await api('admin/subscriptions?status=' + adminSubsList.filter);
+  }catch(e){
+    $('#app').innerHTML = '<h2>💳 Abonnements vendeurs</h2>' +
+      '<div class="card err" style="display:block">'+esc(e.message)+'</div>';
+    return;
+  }
+  adminSubsList.items = data.data || [];
+  adminSubsList.last  = data.last_page || 1;
+  adminSubsList.page  = 1;
+
+  $('#app').innerHTML =
+    '<h2>💳 Abonnements vendeurs</h2>' +
+    '<div class="muted" style="margin:-6px 0 12px">10 000 FCFA / 30 jours · paiement Orange Money · vous vérifiez et activez</div>' +
+    '<div class="stats" style="grid-template-columns:repeat(2,1fr)">' +
+      '<div class="st" style="background:#EDE9FE"><b style="color:#7C3AED">'+stats.subs_to_verify+'</b><span>à vérifier</span></div>' +
+      '<div class="st" style="background:#FEF3C7"><b style="color:#B45309">'+stats.subs_pending+'</b><span>en attente</span></div>' +
+      '<div class="st" style="background:#DCFCE7"><b style="color:#15803D">'+stats.subs_active+'</b><span>actifs</span></div>' +
+      '<div class="st" style="background:#F2F5F2"><b>'+fcfa(stats.subs_revenue)+'</b><span>encaissés</span></div>' +
+    '</div>' +
+    '<div class="seg">' +
+      '<button class="'+(adminSubsList.filter==='tous'?'on':'')+'" onclick="app.subFilter(\'tous\')">Tous</button>' +
+      '<button class="'+(adminSubsList.filter==='a_verifier'?'on':'')+'" onclick="app.subFilter(\'a_verifier\')">💰 À vérifier' +
+        (stats.subs_to_verify ? ' ('+stats.subs_to_verify+')' : '') + '</button>' +
+      '<button class="'+(adminSubsList.filter==='en_attente'?'on':'')+'" onclick="app.subFilter(\'en_attente\')">En attente</button>' +
+      '<button class="'+(adminSubsList.filter==='actif'?'on':'')+'" onclick="app.subFilter(\'actif\')">Actifs</button>' +
+      '<button class="'+(adminSubsList.filter==='inactif'?'on':'')+'" onclick="app.subFilter(\'inactif\')">Inactifs</button>' +
+    '</div>' +
+    '<div class="search"><input id="s-q" type="search" placeholder="🔍 Rechercher un vendeur…" value="'+esc(adminSubsList.search)+'" oninput="app.searchSubs(this.value)"></div>' +
+    '<div id="s-list"></div>' +
+    '<button class="btn ghost" id="s-more" style="display:none" onclick="app.moreSubs()">Charger plus</button>';
+  renderSubs();
+}
+
+function renderSubs(){
+  const list = adminSubsList.items.map(s => {
+    const u = s.user || {};
+    const boutique = u.store && u.store.name;
+    let actions = '';
+    if (s.statut === 'paiement_declare'){
+      actions = '<button class="btn small" onclick="app.activerAbo('+s.id+')">✅ Paiement reçu — activer</button>' +
+                '<button class="btn small red" onclick="app.rejeterPaiement('+s.id+')">❌ Non retrouvé</button>';
+    } else if (s.statut === 'en_attente'){
+      actions = '<button class="btn small" onclick="app.activerAbo('+s.id+')">✅ Activer</button>';
+    } else if (s.statut === 'actif'){
+      actions = '<button class="btn small gray" onclick="app.desactiverAbo('+s.id+')">⛔ Désactiver</button>';
+    } else {
+      actions = '<button class="btn small" onclick="app.activerAbo('+s.id+')">🔁 Renouveler</button>';
+    }
+    actions += '<button class="btn small ghost" onclick="app.go(\'#/admin/sub/'+s.id+'\')">Suivi →</button>';
+
+    const pay = (s.payer_name || s.payment_ref)
+      ? '<div style="margin-top:6px; padding:8px 10px; background:#F5F3FF; border-radius:10px">' +
+          '💰 Payé par <b>'+esc(s.payer_name || '—')+'</b>' +
+          (s.payer_phone ? ' · 📞 '+esc(s.payer_phone) : '') +
+          (s.payment_ref ? '<br>ID transaction : <b>'+esc(s.payment_ref)+'</b>' : '') +
+          (s.payment_declared_at ? '<br><span class="muted">Déclaré le '+ddate(s.payment_declared_at)+'</span>' : '') +
+          (s.payment_confirmed_at ? '<br>✅ Confirmé le '+ddate(s.payment_confirmed_at) : '') +
+        '</div>'
+      : '';
+
+    return '<div class="card">' +
+      '<div class="iline"><b>'+esc(u.name || 'Vendeur')+'</b>'+subPill(s.statut)+'</div>' +
+      '<div class="muted">'+(boutique ? '🏪 '+esc(boutique)+' · ' : '')+esc(u.email || '')+(u.phone ? ' · 📞 '+esc(u.phone) : '')+'</div>' +
+      '<div class="muted" style="margin-top:4px">'+fcfa(s.amount)+' · '+s.duration_days+' jours' +
+        (s.statut === 'actif' && s.jours_restants != null ? ' · <b>'+s.jours_restants+' j restant(s)</b>' : '') +
+        (s.ends_at ? ' · fin '+ddate(s.ends_at) : '') +
+        (s.status === 'en_attente' ? ' · demandé le '+ddate(s.created_at) : '') +
+      '</div>' +
+      pay +
+      '<div style="margin-top:8px">'+actions+'</div>' +
+    '</div>';
+  }).join('');
+
+  $('#s-list').innerHTML = list ||
+    '<div class="card empty">Aucun abonnement dans cette catégorie.</div>';
+  const more = $('#s-more');
+  if (more) more.style.display = (adminSubsList.page < adminSubsList.last) ? 'block' : 'none';
+}
+
+app.subFilter = f => { adminSubsList.filter = f; adminSubsList.page = 1; adminSubs(); };
+
+app.searchSubs = s => {
+  clearTimeout(app._st);
+  app._st = setTimeout(async () => {
+    adminSubsList.search = s.trim(); adminSubsList.page = 1;
+    try{
+      const params = new URLSearchParams({status: adminSubsList.filter, page: 1});
+      if (adminSubsList.search) params.set('search', adminSubsList.search);
+      const data = await api('admin/subscriptions?' + params.toString());
+      adminSubsList.items = data.data || []; adminSubsList.last = data.last_page || 1;
+      renderSubs();
+    }catch(e){ toast(e.message); }
+  }, 350);
+};
+
+app.moreSubs = async () => {
+  try{
+    adminSubsList.page++;
+    const params = new URLSearchParams({status: adminSubsList.filter, page: adminSubsList.page});
+    if (adminSubsList.search) params.set('search', adminSubsList.search);
+    const data = await api('admin/subscriptions?' + params.toString());
+    adminSubsList.items = adminSubsList.items.concat(data.data || []);
+    adminSubsList.last = data.last_page || 1;
+    renderSubs();
+  }catch(e){ toast(e.message); }
+};
+
+app.activerAbo = async (id, durationDays) => {
+  try{
+    await api('admin/subscriptions/' + id + '/activate', {
+      method:'POST', body: durationDays ? {duration_days: durationDays} : {}
+    });
+    toast('✓ Abonnement activé — la boutique réapparaît sur le marché.');
+    if (location.hash.startsWith('#/admin/sub/')) adminSubDetail(id);
+    else adminSubs();
+  }catch(e){ toast(e.message); }
+};
+
+app.desactiverAbo = async id => {
+  if (!confirm('Désactiver cet abonnement ? La boutique et ses produits seront masqués du marché.')) return;
+  try{
+    await api('admin/subscriptions/' + id + '/deactivate', {method:'POST', body:{}});
+    toast('✓ Abonnement désactivé.');
+    if (location.hash.startsWith('#/admin/sub/')) adminSubDetail(id);
+    else adminSubs();
+  }catch(e){ toast(e.message); }
+};
+
+app.rejeterPaiement = async id => {
+  const note = prompt('Pourquoi ce paiement n\'est-il pas retrouvé ?\n(le vendeur verra ce message)',
+    'Paiement non retrouvé sur le compte Orange Money. Vérifiez le numéro ou l\'ID de transaction.');
+  if (note === null) return;
+  try{
+    await api('admin/subscriptions/' + id + '/reject-payment', {method:'POST', body:{note: note.trim() || null}});
+    toast('↩️ Paiement rejeté — le vendeur peut déclarer à nouveau.');
+    if (location.hash.startsWith('#/admin/sub/')) adminSubDetail(id);
+    else adminSubs();
+  }catch(e){ toast(e.message); }
+};
+
+async function adminSubDetail(id){
+  if (!user || user.role !== 'admin') return location.hash = '#/home';
+  if (!id) return adminSubs();
+  $('#app').innerHTML = '<div class="empty">Chargement du suivi…</div>';
+  let s, om = {};
+  try{
+    const [d, cfg] = await Promise.all([
+      api('admin/subscriptions/' + id),
+      api('admin/settings').catch(() => ({settings:{}})),
+    ]);
+    s = d.subscription;
+    om = cfg.settings || {};
+  }catch(e){
+    $('#app').innerHTML = '<h2>💳 Suivi d\'abonnement</h2>' +
+      '<div class="card err" style="display:block">'+esc(e.message)+'</div>' +
+      '<button class="btn ghost" onclick="app.go(\'#/admin/abonnements\')">← Retour</button>';
+    return;
+  }
+  const u = s.user || {};
+  const boutique = u.store && u.store.name;
+
+  let actions = '';
+  if (s.statut === 'paiement_declare'){
+    actions = '<button class="btn" onclick="app.activerAbo('+s.id+')">✅ Paiement reçu — activer ('+fcfa(s.amount)+')</button>' +
+      '<button class="btn red" onclick="app.rejeterPaiement('+s.id+')">❌ Paiement non retrouvé</button>';
+  } else if (s.statut === 'en_attente'){
+    actions = '<button class="btn" onclick="app.activerAbo('+s.id+')">✅ Activer maintenant ('+fcfa(s.amount)+')</button>';
+  } else if (s.statut === 'actif'){
+    actions = '<button class="btn gray" onclick="app.desactiverAbo('+s.id+')">⛔ Désactiver</button>' +
+      '<button class="btn ghost" onclick="app.activerAbo('+s.id+')">🔁 Renouveler 30 jours</button>';
+  } else {
+    actions = '<button class="btn" onclick="app.activerAbo('+s.id+')">🔁 Renouveler ('+fcfa(s.amount)+')</button>';
+  }
+
+  const paiement = s.payment_declared_at
+    ? '<div class="card" style="background:#F5F3FF">' +
+        '<b>💰 Paiement Orange Money déclaré</b>' +
+        '<div class="iline"><span>Nom du payeur</span><b>'+esc(s.payer_name || '—')+'</b></div>' +
+        '<div class="iline"><span>Numéro utilisé</span><b>'+esc(s.payer_phone || '—')+'</b></div>' +
+        '<div class="iline"><span>ID transaction</span><b>'+esc(s.payment_ref || 'non fourni')+'</b></div>' +
+        '<div class="iline"><span>Déclaré le</span><b>'+ddate(s.payment_declared_at)+'</b></div>' +
+        (s.payment_confirmed_at
+          ? '<div class="iline"><span>Confirmé le</span><b style="color:var(--green)">'+ddate(s.payment_confirmed_at)+'</b></div>'
+          : '<div class="muted" style="margin-top:6px">⚠️ Vérifiez la réception sur votre compte Orange Money ' +
+            '<b>'+fmtPhone(om.orange_money_number || '')+'</b> avant d\'activer.</div>') +
+      '</div>'
+    : '';
+
+  $('#app').innerHTML =
+    '<h2>💳 Suivi d\'abonnement</h2>' +
+    '<div class="muted" style="margin:-6px 0 12px">' +
+      esc(u.name || 'Vendeur') + (boutique ? ' · 🏪 '+esc(boutique) : '') + '</div>' +
+    subBannerRaw(s) +
+    '<div class="card">' +
+      '<div class="iline"><span>Statut</span>'+subPill(s.statut)+'</div>' +
+      '<div class="iline"><span>Montant</span><b>'+fcfa(s.amount)+'</b></div>' +
+      '<div class="iline"><span>Durée</span><b>'+s.duration_days+' jours</b></div>' +
+      (s.starts_at ? '<div class="iline"><span>Début</span><b>'+ddate(s.starts_at)+'</b></div>' : '') +
+      (s.ends_at ? '<div class="iline"><span>Fin</span><b>'+ddate(s.ends_at)+'</b></div>' : '') +
+      (s.statut === 'actif' ? '<div class="iline"><span>Jours restants</span><b>'+s.jours_restants+'</b></div>' : '') +
+      (u.phone ? '<div class="iline"><span>Téléphone</span><b>'+esc(u.phone)+'</b></div>' : '') +
+      '<div class="iline"><span>E-mail</span><b style="font-size:12px">'+esc(u.email || '')+'</b></div>' +
+    '</div>' +
+    paiement +
+    actions +
+    '<div class="card"><b>Suivi pas à pas</b>' +
+      (timeline(s.events) || '<div class="muted">Aucun événement.</div>') +
+    '</div>' +
+    '<button class="btn ghost" onclick="app.go(\'#/admin/abonnements\')">← Tous les abonnements</button>';
+}
+
+function subBannerRaw(s){
+  const map = {
+    actif:      ['banner-ok',  '✅ Abonnement actif · '+s.jours_restants+' jour(s) restant(s)'],
+    paiement_declare: ['banner-attn', '💰 Paiement déclaré · en vérification par le responsable'],
+    en_attente: ['banner-attn','⏳ En attente de paiement · '+fcfa(s.amount)+' à régler'],
+    expire:     ['banner-bad', '⌛ Abonnement expiré · boutique masquée du marché'],
+    desactive:  ['banner-bad', '⛔ Abonnement désactivé · boutique masquée du marché'],
+  };
+  const m = map[s.statut] || ['banner-attn', s.statut];
+  return '<div class="card '+m[0]+'">'+m[1]+'</div>';
+}
+
+async function adminVendorForm(){
+  $('#app').innerHTML =
+    '<h2>➕ Créer un compte vendeur</h2>' +
+    '<div class="muted" style="margin:-6px 0 12px">Pour une personne qui veut vendre sur le marché</div>' +
+    '<div class="card">' +
+      '<label>Nom complet *</label><input id="v-name" placeholder="Ex. Kadiatou Sow">' +
+      '<label>Adresse e-mail *</label><input id="v-mail" type="email" placeholder="La personne saisira cette adresse pour se connecter" autocapitalize="off">' +
+      '<label>Téléphone</label><input id="v-tel" type="tel" placeholder="76 00 00 00">' +
+      '<label>Mot de passe * (à communiquer à la personne)</label><input id="v-pass" type="text" placeholder="6 caractères minimum">' +
+      '<label>Nom de sa boutique (facultatif)</label><input id="v-store" placeholder="Ex. Sabali Bijoux — sinon elle le créera elle-même">' +
+      '<div class="err" id="v-err" style="display:none"></div>' +
+      '<button class="btn" onclick="app.createVendor()">✅ Créer le compte vendeur</button>' +
+    '</div>' +
+    '<div class="card demo">💡 Après la création, la personne se connecte avec son adresse e-mail ' +
+      'et arrive directement dans sa boutique (produits, photos, commandes).</div>';
+}
+
+app.createVendor = async () => {
+  const err = $('#v-err'); err.style.display = 'none';
+  const name  = $('#v-name').value.trim(),
+        mail  = $('#v-mail').value.trim(),
+        tel   = $('#v-tel').value.trim(),
+        pass  = $('#v-pass').value,
+        store = $('#v-store').value.trim();
+  if (name.length < 2){ err.textContent = 'Indiquez le nom complet de la personne.'; err.style.display='block'; return; }
+  if (!mail.includes('@')){ err.textContent = 'L\'adresse e-mail semble incorrecte.'; err.style.display='block'; return; }
+  if (pass.length < 6){ err.textContent = 'Le mot de passe doit faire au moins 6 caractères.'; err.style.display='block'; return; }
+  try{
+    await api('admin/vendor', {method:'POST', body:{
+      name, email:mail, password:pass,
+      phone: tel || null, store_name: store || null}});
+    toast('✓ Compte vendeur créé pour ' + name + ' !');
+    location.hash = '#/admin';
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+/* ---------- mon compte (responsable) ---------- */
+
+async function adminProfile(){
+  let om = {};
+  try{ om = (await api('admin/settings')).settings || {}; }catch(e){}
+  $('#app').innerHTML =
+    '<h2>⚙️ Mon compte</h2>' +
+    '<div class="muted" style="margin:-6px 0 12px">Vos informations de responsable du marché</div>' +
+    '<div class="card">' +
+      '<label>Nom complet *</label><input id="m-name" value="'+esc(user.name)+'" placeholder="Votre nom">' +
+      '<label>Adresse e-mail (votre identifiant de connexion) *</label>' +
+      '<input id="m-mail" type="email" value="'+esc(user.email)+'" autocapitalize="off">' +
+      '<label>Téléphone</label><input id="m-tel" type="tel" value="'+esc(user.phone || '')+'" placeholder="76 00 00 00">' +
+      '<label>Nouveau mot de passe</label>' +
+      '<input id="m-pass" type="password" placeholder="Laisser vide pour garder l\'actuel (6 caractères min.)">' +
+      '<div class="err" id="m-err" style="display:none"></div>' +
+      '<button class="btn" onclick="app.saveProfile()">✅ Enregistrer mes informations</button>' +
+    '</div>' +
+    '<div class="card" style="border:1.5px solid #FDBA74">' +
+      '<b>💳 Paiement Orange Money</b>' +
+      '<div class="muted" style="margin:2px 0 8px">Ce numéro s\'affiche automatiquement aux vendeurs ' +
+        'pour payer leur abonnement (10 000 FCFA / 30 jours).</div>' +
+      '<label>Numéro Orange Money</label>' +
+      '<input id="m-om-num" type="tel" inputmode="tel" value="'+esc(om.orange_money_number || '')+'" placeholder="Ex. 94 50 36 05">' +
+      '<label>Nom du compte Orange Money</label>' +
+      '<input id="m-om-name" value="'+esc(om.orange_money_name || '')+'" placeholder="Ex. Lassine Togo">' +
+      '<div class="err" id="m-om-err" style="display:none"></div>' +
+      '<button class="btn" onclick="app.saveOM()">💾 Enregistrer le numéro Orange Money</button>' +
+      '<div class="muted" style="margin-top:6px">💰 Quand un vendeur paie, vous recevez l\'argent directement ' +
+        'sur ce compte Orange Money. Le vendeur déclare ensuite son nom et son numéro dans son espace, ' +
+        'et vous retrouvez le paiement dans <b>Abos → À vérifier</b>.</div>' +
+    '</div>' +
+    '<div class="card demo">💡 Vous vous connecterez ensuite avec votre nouvelle adresse ' +
+      'e-mail et votre nouveau mot de passe. Votre panneau reste identique.</div>';
+}
+
+app.saveOM = async () => {
+  const err = $('#m-om-err'); err.style.display = 'none';
+  const num  = ($('#m-om-num').value || '').trim();
+  const name = ($('#m-om-name').value || '').trim();
+  if (num.replace(/\D/g, '').length < 6){ err.textContent = 'Le numéro Orange Money semble incorrect.'; err.style.display='block'; return; }
+  try{
+    await api('admin/settings', {method:'PUT', body:{
+      orange_money_number: num, orange_money_name: name || null}});
+    toast('✓ Numéro Orange Money enregistré — visible par les vendeurs.');
+    adminProfile();
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+app.saveProfile = async () => {
+  const err = $('#m-err'); err.style.display = 'none';
+  const name = $('#m-name').value.trim(),
+        mail = $('#m-mail').value.trim(),
+        tel  = $('#m-tel').value.trim(),
+        pass = $('#m-pass').value;
+  if (name.length < 2){ err.textContent = 'Indiquez votre nom complet.'; err.style.display='block'; return; }
+  if (!mail.includes('@')){ err.textContent = 'L\'adresse e-mail semble incorrecte.'; err.style.display='block'; return; }
+  if (pass && pass.length < 6){ err.textContent = 'Le nouveau mot de passe doit faire au moins 6 caractères.'; err.style.display='block'; return; }
+  try{
+    const r = await api('admin/profile', {method:'PUT', body:{
+      name, email:mail, phone: tel || null, password: pass || null}});
+    user = r.user;                                    // garder la session a jour
+    localStorage.setItem('mm_user', JSON.stringify(user));
+    toast('✓ Vos informations sont enregistrées.');
+    adminProfile();
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+/* ---------- démarrage ---------- */
+
+window.addEventListener('hashchange', router);
+router();
+</script>
+</body>
+</html>
