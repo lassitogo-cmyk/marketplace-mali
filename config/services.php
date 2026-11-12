@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | SMS (notifications de commande)
+    |--------------------------------------------------------------------------
+    | driver = log     → écrit dans les journaux (aucun compte requis)
+    | driver = orange  → Orange SMS API (developer.orange.com)
+    */
+    'sms' => [
+        'driver' => env('SMS_DRIVER', 'log'),
+        'orange' => [
+            'client_id'     => env('ORANGE_SMS_CLIENT_ID'),
+            'client_secret' => env('ORANGE_SMS_CLIENT_SECRET'),
+            'sender'        => env('ORANGE_SMS_SENDER', 'Marketplace'),
+        ],
+    ],
+
 ];

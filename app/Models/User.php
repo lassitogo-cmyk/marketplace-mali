@@ -40,6 +40,22 @@ class User extends Authenticatable
         return $this->role === 'vendeur';
     }
 
+    public function isCourier(): bool
+    {
+        return $this->role === 'livreur';
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    /** Notifications reçues dans l'application. */
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
+    }
+
     public function store()
     {
         return $this->hasOne(Store::class);

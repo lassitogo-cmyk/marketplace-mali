@@ -272,6 +272,7 @@
 <header>
   <span class="logo">🛍️</span>
   <h1>Marketplace Mali</h1>
+  <button class="hbtn" id="bellH" onclick="app.go('#/notifications')" aria-label="Notifications" style="display:none">🔔<span class="n" id="bellN" style="display:none">0</span></button>
   <button class="hbtn" id="shareH" onclick="app.share()" aria-label="Partager">📤</button>
   <button class="hbtn" id="cartH" onclick="app.go('#/cart')" aria-label="Panier">🛒<span class="n" id="cartN" style="display:none">0</span></button>
   <button class="hbtn" id="authBtn" onclick="app.authClick()">—</button>
@@ -297,11 +298,21 @@ let cart   = JSON.parse(localStorage.getItem('mm_cart') || '[]');
 let savedHash = '';            // où revenir après la connexion
 
 const STATUS = {
-  en_attente: {label:'En attente', color:'#B45309', bg:'#FEF3C7'},
-  confirmee:  {label:'Confirmée',  color:'#1D4ED8', bg:'#DBEAFE'},
-  livree:     {label:'Livrée',     color:'#15803D', bg:'#DCFCE7'},
-  annulee:    {label:'Annulée',   color:'#B91C1C', bg:'#FEE2E2'},
+  en_attente:   {label:'En attente',   color:'#B45309', bg:'#FEF3C7'},
+  confirmee:    {label:'Confirmée',    color:'#1D4ED8', bg:'#DBEAFE'},
+  en_livraison: {label:'En livraison', color:'#7C3AED', bg:'#EDE9FE'},
+  livree:       {label:'Livrée',       color:'#15803D', bg:'#DCFCE7'},
+  annulee:      {label:'Annulée',      color:'#B91C1C', bg:'#FEE2E2'},
 };
+
+const PAY = {
+  a_payer: {label:'Non payé',        color:'#B45309', bg:'#FEF3C7'},
+  declare: {label:'Paiement déclaré', color:'#7C3AED', bg:'#EDE9FE'},
+  paye:    {label:'Payé',            color:'#15803D', bg:'#DCFCE7'},
+};
+
+function payPill(st){ const s = PAY[st] || {label:st||'—', color:'#555', bg:'#EEE'};
+  return '<span class="pill" style="color:'+s.color+';background:'+s.bg+'">'+s.label+'</span>'; }
 
 const SUBS = {
   en_attente:       {label:'En attente',        color:'#B45309', bg:'#FEF3C7'},
@@ -411,6 +422,68 @@ function saveCart(){ localStorage.setItem('mm_cart', JSON.stringify(cart)); refr
 function refreshBadge(){ const n = cart.reduce((s,l)=>s+l.qty,0); const el = $('#cartN');
   el.textContent = n; el.style.display = n ? 'inline-block' : 'none'; }
 
+/* ---------- notifications (cloche + alertes) ---------- */
+
+let notifSeen  = Number(localStorage.getItem('mm_notif_seen') || 0);
+let notifReady = false;
+
+function ding(){
+  try{
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return;
+    const ctx = new C(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.07;
+    o.connect(g); g.connect(ctx.destination); o.start();
+    setTimeout(() => { try{ o.stop(); ctx.close(); }catch(e){} }, 220);
+  }catch(e){}
+}
+
+async function refreshNotifs(notify){
+  if (!user || !token) return;
+  try{
+    const d = await api('notifications/count');
+    const b = $('#bellH'), n = $('#bellN');
+    if (b) b.style.display = '';
+    if (n){
+      n.textContent = d.unread > 99 ? '99+' : d.unread;
+      n.style.display = d.unread ? 'inline-block' : 'none';
+    }
+
+    if (notify && notifReady && d.latest_id > notifSeen){
+      notifSeen = d.latest_id;
+      localStorage.setItem('mm_notif_seen', String(notifSeen));
+      const list = await api('notifications');
+      const first = (list.data || [])[0];
+      if (first){
+        toast('🔔 ' + first.title);
+        ding();
+        if (window.Notification && Notification.permission === 'granted'){
+          try{ new Notification('Marketplace Mali — ' + first.title, {body: first.body || ''}); }catch(e){}
+        }
+      }
+    } else if (d.latest_id > notifSeen){
+      notifSeen = d.latest_id;
+      localStorage.setItem('mm_notif_seen', String(notifSeen));
+    }
+
+    notifReady = true;
+  }catch(e){}
+}
+
+function startNotifs(){
+  if (window._notifTimer) clearInterval(window._notifTimer);
+  if (!user){ $('#bellH').style.display = 'none'; return; }
+  notifReady = false;
+  refreshNotifs(false);
+  window._notifTimer = setInterval(() => refreshNotifs(true), 20000);
+  if (!window._notifFocus){
+    window._notifFocus = true;
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) refreshNotifs(true);
+    });
+  }
+}
+
 /* ---------- accès API ---------- */
 
 async function api(path, opts = {}){
@@ -448,7 +521,12 @@ function doLogin(payload){ token = payload.token; user = payload.user;
 function doLogout(call = true){
   if (call && token){ api('logout', {method:'POST'}).catch(()=>{}); }
   token = ''; user = null;
-  localStorage.removeItem('mm_token'); localStorage.removeItem('mm_user'); }
+  localStorage.removeItem('mm_token'); localStorage.removeItem('mm_user');
+  if (window._notifTimer){ clearInterval(window._notifTimer); window._notifTimer = null; }
+  notifReady = false;
+  const b = $('#bellH'); if (b) b.style.display = 'none';
+  const n = $('#bellN'); if (n) n.style.display = 'none';
+}
 
 /* ---------- panier ---------- */
 
@@ -510,11 +588,15 @@ function renderTabs(){
   const h = location.hash || '#/home';
   const admin  = user && user.role === 'admin';
   const vendor = user && user.role === 'vendeur';
+  const courier = user && user.role === 'livreur';
   const tabs = admin ? [
     {href:'#/admin', i:'👥', l:'Personnes', on: h === '#/admin' || h === '#/admin/'},
     {href:'#/admin/commandes', i:'📦', l:'Contrôle', on: h.startsWith('#/admin/commandes') || h.startsWith('#/admin/produits') || h.startsWith('#/admin/signalements')},
     {href:'#/admin/abonnements', i:'💳', l:'Abos', on: h.startsWith('#/admin/abonnements') || h.startsWith('#/admin/sub')},
     {href:'#/admin/profile', i:'⚙️', l:'Compte', on: h.startsWith('#/admin/profile')},
+  ] : courier ? [
+    {href:'#/courier', i:'🛵', l:'Livraisons', on: h.startsWith('#/courier')},
+    {href:'#/notifications', i:'🔔', l:'Alertes', on: h.startsWith('#/notifications')},
   ] : vendor ? [
     {href:'#/vendor', i:'📥', l:'Commandes', on: h === '#/vendor' || h === '#/vendor/'},
     {href:'#/vendor/products', i:'🏷️', l:'Produits', on: h.startsWith('#/vendor/products')},
@@ -535,6 +617,8 @@ function router(){
   const authBtn = $('#authBtn');
   if (user){ authBtn.textContent = '⏻'; authBtn.title = 'Se déconnecter'; }
   else{ authBtn.textContent = '🔑'; authBtn.title = 'Se connecter'; }
+  if (user && !window._notifTimer) startNotifs();
+  if (!user && $('#bellH')) $('#bellH').style.display = 'none';
   /* Chaque rôle reste sur SA interface :
      responsable -> panneau de contrôle (#/admin…)
      vendeur/vendeuse -> uniquement l'espace boutique (#/vendor…)
@@ -545,16 +629,25 @@ function router(){
   const parts = h.split('/');
   const admin  = user && user.role === 'admin';
   const vendor = user && user.role === 'vendeur';
+  const courier = user && user.role === 'livreur';
   const clientViews = ['', 'home', 'product', 'store', 'cart', 'orders', 'order'];
+
+  if (parts[0] === 'notifications') return viewNotifications();
 
   if (admin && parts[0] !== 'admin'){
     location.hash = '#/admin'; return;      // le responsable reste dans son panneau
   }
   if (!admin && parts[0] === 'admin'){
-    location.hash = vendor ? '#/vendor' : '#/home'; return;
+    location.hash = courier ? '#/courier' : vendor ? '#/vendor' : '#/home'; return;
   }
   if (vendor && clientViews.includes(parts[0])){
     location.hash = '#/vendor'; return;      // le vendeur reste dans sa boutique
+  }
+  if (courier && parts[0] !== 'courier'){
+    location.hash = '#/courier'; return;     // le livreur reste dans ses livraisons
+  }
+  if (!courier && parts[0] === 'courier'){
+    location.hash = '#/home'; return;
   }
   if (!vendor && parts[0] === 'vendor'){
     location.hash = '#/home'; return;        // l'acheteur reste sur le marché
@@ -569,6 +662,7 @@ function router(){
   if (parts[0] === 'cart')        return viewCart();
   if (parts[0] === 'orders')       return viewOrders();
   if (parts[0] === 'order')       return viewOrder(parts[1]);
+  if (parts[0] === 'courier')     return viewCourier(parts.slice(1));
   if (parts[0] === 'vendor')      return viewVendor(parts.slice(1));
   if (parts[0] === 'admin')       return viewAdmin(parts.slice(1));
   viewHome();
@@ -973,7 +1067,7 @@ async function viewOrder(id){
     '<a href="#/orders">‹ Mes commandes</a>' +
     '<div class="card" style="margin-top:8px">' +
       '<h2 style="margin-top:0">'+esc(o.reference)+'</h2>' +
-      '<div>'+pill(o.status)+'</div>' +
+      '<div>'+pill(o.status)+' '+payPill(o.payment_status)+'</div>' +
       '<div class="muted" style="margin-top:6px">Passée le '+ddate(o.created_at)+'</div>' +
       '<div class="sep"></div>' +
       o.items.map(it =>
@@ -985,6 +1079,7 @@ async function viewOrder(id){
       '<div style="font-size:14px; line-height:1.6">📍 '+esc(o.address)+'<br>📞 '+esc(o.phone) +
       (o.note ? '<br>📝 '+esc(o.note) : '') + '</div>' +
     '</div>' +
+    payBlock(o) +
     '<div class="card">' +
       '<b>Un problème avec cette commande ?</b>' +
       '<div class="muted" style="margin:4px 0 8px">Produit non conforme, vendeur injoignable, livraison… ' +
@@ -1002,6 +1097,153 @@ app.reportOrder = async id => {
   try{
     await api('orders/' + id + '/report', {method:'POST', body:{message: msg}});
     toast('✓ Signalement envoyé au responsable du marché.');
+    viewOrder(id);
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+/* ---------- notifications ---------- */
+
+const NOTIF_ICONS = {
+  order_created:'📥', order_confirmed:'✅', payment_declared:'💰', payment_confirmed:'💳',
+  delivery_request:'🛵', order_shipped:'🛵', order_delivered:'📦', order_cancelled:'🛑',
+  order_en_livraison:'🛵', order_livree:'✅', order_annulee:'🛑', account:'👤',
+};
+
+async function viewNotifications(){
+  if (!user) return location.hash = '#/login';
+  $('#app').innerHTML = '<div class="empty">Chargement…</div>';
+  let d;
+  try{ d = await api('notifications'); }
+  catch(e){ $('#app').innerHTML = '<div class="card err" style="display:block">'+esc(e.message)+'</div>'; return; }
+
+  const list = (d.data || []).map(n => {
+    const unread = !n.read_at;
+    return '<div class="card" style="'+(unread ? 'border-left:4px solid var(--green)' : '')+'" onclick="app.openNotif('+n.id+','+(n.order_id || 0)+')">' +
+      '<div class="iline"><b>'+(NOTIF_ICONS[n.type] || '🔔')+' '+esc(n.title)+'</b>' +
+        (unread ? '<span class="pill" style="color:#0E7C3A;background:#DCFCE7">nouveau</span>' : '') + '</div>' +
+      (n.body ? '<div class="muted" style="margin-top:4px">'+esc(n.body)+'</div>' : '') +
+      '<div class="muted" style="margin-top:6px;font-size:12px">'+ddate(n.created_at)+'</div>' +
+    '</div>';
+  }).join('');
+
+  $('#app').innerHTML =
+    '<h2>🔔 Notifications</h2>' +
+    '<div style="display:flex;gap:8px;margin-bottom:10px">' +
+      '<button class="btn small ghost" style="flex:1" onclick="app.readAllNotifs()">Tout marquer lu</button>' +
+      '<button class="btn small ghost" style="flex:1" onclick="app.enablePush()">Alertes téléphone</button>' +
+    '</div>' +
+    (list || '<div class="card empty">Aucune notification pour l\'instant.</div>');
+}
+
+app.openNotif = async (id, orderId) => {
+  try{ await api('notifications/' + id + '/read', {method:'POST'}); }catch(e){}
+  refreshNotifs(false);
+  if (!orderId) return viewNotifications();
+  if (user.role === 'admin')   return location.hash = '#/admin/commandes';
+  if (user.role === 'vendeur') return location.hash = '#/vendor';
+  if (user.role === 'livreur') return location.hash = '#/courier';
+  location.hash = '#/order/' + orderId;
+};
+
+app.readAllNotifs = async () => {
+  try{
+    await api('notifications/read-all', {method:'POST'});
+    toast('✓ Notifications lues.');
+    refreshNotifs(false);
+    viewNotifications();
+  }catch(e){ toast(e.message); }
+};
+
+app.enablePush = async () => {
+  if (!('Notification' in window)) return toast('Ce navigateur ne gère pas les alertes.');
+  const p = await Notification.requestPermission();
+  toast(p === 'granted' ? '✓ Alertes activées sur cet appareil.' : 'Alertes refusées par le navigateur.');
+};
+
+/* ---------- espace livreur ---------- */
+
+async function viewCourier(){
+  if (!user || user.role !== 'livreur') return location.hash = '#/home';
+  $('#app').innerHTML = '<div class="empty">Chargement des livraisons…</div>';
+  let d;
+  try{ d = await api('courier/orders'); }
+  catch(e){ $('#app').innerHTML = '<div class="card err" style="display:block">'+esc(e.message)+'</div>'; return; }
+
+  const list = (d.data || []).map(o => {
+    const mine = o.courier_id === user.id;
+    let act = '';
+    if (o.status === 'confirmee')
+      act = '<button class="btn small" onclick="app.takeOrder('+o.id+')">🛵 Prendre la livraison</button>';
+    else if (o.status === 'en_livraison' && mine)
+      act = '<button class="btn small" onclick="app.deliverOrder('+o.id+')">✅ Marquer livrée</button>';
+
+    return '<div class="card">' +
+      '<div class="iline"><b>'+esc(o.reference)+'</b>'+pill(o.status)+'</div>' +
+      '<div class="muted">👤 '+esc(o.user && o.user.name || 'Client')+
+        (o.user && o.user.phone ? ' · 📞 '+esc(o.user.phone) : '')+'</div>' +
+      '<div class="muted">📍 '+esc(o.address)+'</div>' +
+      '<div class="iline" style="border:0"><span>'+payPill(o.payment_status)+'</span><b>'+fcfa(o.total)+'</b></div>' +
+      (o.items || []).map(it => '<div class="muted">• '+esc(it.product_name)+' ×'+it.qty+
+        (it.store ? ' — '+esc(it.store.name) : '')+'</div>').join('') +
+      (act ? '<div style="margin-top:8px">'+act+'</div>' : '') +
+    '</div>';
+  }).join('');
+
+  $('#app').innerHTML = '<h2>🛵 Livraisons</h2>' +
+    '<div class="muted" style="margin:-6px 0 12px">Les commandes confirmées par les vendeurs arrivent ici automatiquement.</div>' +
+    (list || '<div class="card empty">Aucune livraison en attente pour l\'instant.</div>');
+}
+
+app.takeOrder = async id => {
+  try{
+    await api('courier/orders/' + id + '/accept', {method:'POST'});
+    toast('✓ Livraison prise en charge.');
+    viewCourier(); refreshNotifs(false);
+  }catch(e){ toast(e.message); }
+};
+
+app.deliverOrder = async id => {
+  if (!confirm('Confirmer que la commande a été remise au client ?')) return;
+  try{
+    await api('courier/orders/' + id + '/delivered', {method:'POST'});
+    toast('✓ Livraison terminée.');
+    viewCourier();
+  }catch(e){ toast(e.message); }
+};
+
+/* ---------- paiement Orange Money d'une commande ---------- */
+
+function payBlock(o){
+  if (o.payment_status === 'paye')
+    return '<div class="card"><b>💰 Paiement</b><div class="muted" style="margin-top:4px">Paiement Orange Money confirmé. Merci !</div></div>';
+
+  if (o.payment_status === 'declare')
+    return '<div class="card"><b>💰 Paiement</b><div class="muted" style="margin-top:4px">' +
+      'Vous avez déclaré le paiement (ID : '+esc(o.payment_ref || '—')+'). Le vendeur vérifie et confirme.</div></div>';
+
+  if (o.status !== 'confirmee' && o.status !== 'en_livraison') return '';
+
+  const shop  = (o.items || []).map(it => it.store).find(s => s && s.phone);
+  const num   = shop ? shop.phone : '';
+  return '<div class="card">' +
+    '<b>💰 Payer par Orange Money</b>' +
+    '<div class="muted" style="margin-top:4px">Le vendeur a confirmé votre commande. Envoyez '+fcfa(o.total)+' par Orange Money' +
+      (shop ? ' au numéro de la boutique <b>'+esc(shop.name)+'</b>' : '') + ', puis déclarez le paiement ci-dessous.</div>' +
+    (num ? '<div class="om-box"><div class="muted">Numéro Orange Money</div><div class="om-num">'+esc(num)+'</div></div>' : '') +
+    '<label>Identifiant de la transaction Orange Money *</label>' +
+    '<input id="pay-ref" placeholder="Ex. 1234567890">' +
+    '<div class="err" id="pay-err" style="display:none"></div>' +
+    '<button class="btn" onclick="app.payOrder('+o.id+')">✅ J\'ai payé — déclarer</button>' +
+  '</div>';
+}
+
+app.payOrder = async id => {
+  const err = $('#pay-err'); err.style.display = 'none';
+  const ref = ($('#pay-ref').value || '').trim();
+  if (ref.length < 4){ err.textContent = 'Indiquez l\'identifiant de la transaction Orange Money.'; err.style.display = 'block'; return; }
+  try{
+    await api('orders/' + id + '/payment', {method:'POST', body:{transaction_id: ref}});
+    toast('✓ Paiement déclaré au vendeur.');
     viewOrder(id);
   }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
 };
@@ -1049,6 +1291,7 @@ app.login = async () => {
     /* chaque rôle arrive sur SA propre interface */
     location.hash = (user.role === 'admin') ? '#/admin'
                   : (user.role === 'vendeur') ? '#/vendor'
+                  : (user.role === 'livreur') ? '#/courier'
                   : reprise ? '#/cart'
                   : (savedHash || '#/home');
     savedHash = '';
@@ -1120,10 +1363,15 @@ async function vendorOrders(){
       actions = '<button class="btn small" onclick="app.setStatus('+o.id+',\'confirmee\')">✅ Confirmer</button>' +
                 '<button class="btn small red" onclick="app.setStatus('+o.id+',\'annulee\')">Refuser</button>';
     else if (o.status === 'confirmee')
-      actions = '<button class="btn small" onclick="app.setStatus('+o.id+',\'livree\')">📦 Marquer livrée</button>' +
+      actions = (o.payment_status === 'declare'
+                  ? '<button class="btn small" onclick="app.confirmPay('+o.id+')">💰 Paiement reçu</button>'
+                  : '') +
+                '<button class="btn small ghost" onclick="app.setStatus('+o.id+',\'livree\')">📦 Marquer livrée</button>' +
                 '<button class="btn small red" onclick="app.setStatus('+o.id+',\'annulee\')">Annuler</button>';
     return '<div class="card">' +
-      '<div class="iline"><b>'+esc(o.reference)+'</b>'+pill(o.status)+'</div>' +
+      '<div class="iline"><b>'+esc(o.reference)+'</b><span>'+pill(o.status)+' '+payPill(o.payment_status)+'</span></div>' +
+      (o.payment_status === 'declare' && o.payment_ref
+        ? '<div class="muted">💰 ID transaction : <b>'+esc(o.payment_ref)+'</b></div>' : '') +
       '<div class="muted">👤 '+esc(o.user && o.user.name || 'Client')+
         (o.user && o.user.phone ? ' · '+esc(o.user.phone) : '')+' · '+ddate(o.created_at)+'</div>' +
       '<div class="sep"></div>' +
@@ -1141,6 +1389,15 @@ app.setStatus = async (id, status) => {
   try{
     await api('vendor/orders/' + id + '/status', {method:'PUT', body:{status}});
     toast('✓ Commande mise à jour.'); vendorOrders();
+  }catch(e){ toast(e.message); }
+};
+
+app.confirmPay = async id => {
+  if (!confirm('Confirmer que l\'argent Orange Money a bien été reçu ?')) return;
+  try{
+    await api('vendor/orders/' + id + '/payment/confirm', {method:'POST'});
+    toast('✓ Paiement confirmé — le livreur est prévenu.');
+    vendorOrders();
   }catch(e){ toast(e.message); }
 };
 
@@ -1639,6 +1896,7 @@ app.demanderAbo = async () => {
 const ROLES = {
   client:  {label:'Cliente / Client', color:'#1D4ED8', bg:'#DBEAFE'},
   vendeur: {label:'Vendeur / Vendeuse', color:'#15803D', bg:'#DCFCE7'},
+  livreur: {label:'Livreur', color:'#7C3AED', bg:'#EDE9FE'},
   admin:   {label:'Responsable', color:'#B45309', bg:'#FEF3C7'},
 };
 
@@ -1652,6 +1910,7 @@ const adminList = { items:[], page:1, last:1, search:'' };
 async function viewAdmin(parts){
   if (!user || user.role !== 'admin'){ return location.hash = '#/home'; }
   if (parts[0] === 'vendor')       return adminVendorForm();
+  if (parts[0] === 'courier')      return adminCourierForm();
   if (parts[0] === 'profile')      return adminProfile();
   if (parts[0] === 'abonnements')  return adminSubs();
   if (parts[0] === 'sub')          return adminSubDetail(parts[1]);
@@ -1683,11 +1942,12 @@ async function adminUsers(){
       '<div class="st"><b>'+stats.products+'</b><span>produits</span></div>' +
       '<div class="st"><b>'+stats.orders+'</b><span>commandes</span></div>' +
     '</div>' +
-    '<div style="display:flex;gap:8px;margin-bottom:10px">' +
-      '<button class="btn small ghost" style="flex:1" onclick="app.go(\'#/admin/vendor\')">➕ Créer un vendeur</button>' +
-      '<button class="btn small '+(stats.reports_new ? 'red' : 'gray')+'" style="flex:1" onclick="app.go(\'#/admin/signalements\')">🚨 Signalements' +
-        (stats.reports_new ? ' ('+stats.reports_new+')' : '') + '</button>' +
+    '<div style="display:flex;gap:8px;margin-bottom:8px">' +
+      '<button class="btn small ghost" style="flex:1" onclick="app.go(\'#/admin/vendor\')">➕ Vendeur</button>' +
+      '<button class="btn small ghost" style="flex:1" onclick="app.go(\'#/admin/courier\')">🛵 Livreur</button>' +
     '</div>' +
+    '<button class="btn small '+(stats.reports_new ? 'red' : 'gray')+'" style="width:100%;margin-bottom:10px" onclick="app.go(\'#/admin/signalements\')">🚨 Signalements' +
+      (stats.reports_new ? ' ('+stats.reports_new+')' : '') + '</button>' +
     (stats.blocked ? '<div class="muted" style="margin:-4px 0 10px">⛔ '+stats.blocked+' compte(s) bloqué(s)</div>' : '') +
     (stats.subs_to_verify
       ? '<button class="btn red" style="width:100%;margin-bottom:10px" onclick="app.go(\'#/admin/abonnements\')">💰 ' +
@@ -1847,7 +2107,7 @@ async function adminOrders(){
 
   $('#app').innerHTML = controlShell('commandes', stats.reports_new) +
     '<div class="seg" style="background:#fff; border:1.5px solid var(--line)">' +
-      [['tous','Toutes'],['en_attente','En attente'],['confirmee','Confirmées'],['livree','Livrées'],['annulee','Annulées']]
+      [['tous','Toutes'],['en_attente','En attente'],['confirmee','Confirmées'],['en_livraison','En livraison'],['livree','Livrées'],['annulee','Annulées']]
         .map(([k,l]) => '<button class="'+(adminOrdersList.status===k?'on':'')+'" onclick="app.orderFilter(\''+k+'\')">'+l+'</button>').join('') +
     '</div>' +
     '<div class="search"><input id="o-q" type="search" placeholder="🔍 Référence, client, produit…" value="'+esc(adminOrdersList.search)+'" oninput="app.searchAdminOrders(this.value)"></div>' +
@@ -1865,11 +2125,15 @@ function renderAdminOrders(){
       acts = '<button class="btn small" onclick="app.adminOrderStatus('+o.id+',\'confirmee\')">✅ Confirmer</button>' +
              '<button class="btn small red" onclick="app.adminOrderStatus('+o.id+',\'annulee\')">🛑 Annuler</button>';
     } else if (o.status === 'confirmee'){
-      acts = '<button class="btn small ghost" onclick="app.adminOrderStatus('+o.id+',\'livree\')">📦 Marquer livrée</button>' +
+      acts = (o.payment_status === 'declare'
+                ? '<button class="btn small" onclick="app.adminConfirmPay('+o.id+')">💰 Confirmer le paiement</button>'
+                : '') +
+             '<button class="btn small ghost" onclick="app.adminOrderStatus('+o.id+',\'livree\')">📦 Marquer livrée</button>' +
              '<button class="btn small red" onclick="app.adminOrderStatus('+o.id+',\'annulee\')">🛑 Annuler</button>';
     }
     return '<div class="card">' +
-      '<div class="iline"><b>'+esc(o.reference)+'</b>'+pill(o.status)+'</div>' +
+      '<div class="iline"><b>'+esc(o.reference)+'</b><span>'+pill(o.status)+' '+payPill(o.payment_status)+'</span></div>' +
+      (o.payment_ref ? '<div class="muted">💰 ID transaction : <b>'+esc(o.payment_ref)+'</b></div>' : '') +
       '<div class="muted">👤 '+esc(u.name || 'Client')+(u.phone ? ' · 📞 '+esc(u.phone) : '')+'</div>' +
       '<div class="muted">'+ddate(o.created_at)+' · '+fcfa(o.total)+'</div>' +
       (vendors.length ? '<div class="muted">🏪 '+esc(vendors.join(', '))+'</div>' : '') +
@@ -1918,6 +2182,15 @@ app.adminOrderStatus = async (id, status) => {
   try{
     await api('admin/orders/' + id + '/status', {method:'PUT', body:{status}});
     toast('✓ Commande mise à jour.');
+    adminOrders();
+  }catch(e){ toast(e.message); }
+};
+
+app.adminConfirmPay = async id => {
+  if (!confirm('Confirmer que le paiement Orange Money a bien été reçu ?')) return;
+  try{
+    await api('admin/orders/' + id + '/payment/confirm', {method:'POST'});
+    toast('✓ Paiement confirmé.');
     adminOrders();
   }catch(e){ toast(e.message); }
 };
@@ -2358,8 +2631,42 @@ app.createVendor = async () => {
   }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
 };
 
-/* ---------- mon compte (responsable) ---------- */
+/* ---------- créer un compte livreur ---------- */
 
+async function adminCourierForm(){
+  $('#app').innerHTML =
+    '<h2>🛵 Créer un compte livreur</h2>' +
+    '<div class="muted" style="margin:-6px 0 12px">Le livreur reçoit les commandes confirmées par les vendeurs.</div>' +
+    '<div class="card">' +
+      '<label>Nom complet *</label><input id="c-name" placeholder="Ex. Moussa Keïta">' +
+      '<label>Adresse e-mail *</label><input id="c-mail" type="email" placeholder="Livreur saissira cette adresse pour se connecter" autocapitalize="off">' +
+      '<label>Téléphone * (reçoit les SMS)</label><input id="c-tel" type="tel" placeholder="76 00 00 00">' +
+      '<label>Mot de passe * (à communiquer au livreur)</label><input id="c-pass" type="text" placeholder="6 caractères minimum">' +
+      '<div class="err" id="c-err" style="display:none"></div>' +
+      '<button class="btn" onclick="app.createCourier()">✅ Créer le compte livreur</button>' +
+    '</div>' +
+    '<div class="card demo">💡 Le livreur se connecte avec son e-mail et arrive directement sur ses livraisons. ' +
+      'Il reçoit chaque nouvelle course dans l\'application, par e-mail et par SMS.</div>';
+}
+
+app.createCourier = async () => {
+  const err = $('#c-err'); err.style.display = 'none';
+  const name = $('#c-name').value.trim(),
+        mail = $('#c-mail').value.trim(),
+        tel  = $('#c-tel').value.trim(),
+        pass = $('#c-pass').value;
+  if (name.length < 2){ err.textContent = 'Indiquez le nom complet du livreur.'; err.style.display='block'; return; }
+  if (!mail.includes('@')){ err.textContent = 'L\'adresse e-mail semble incorrecte.'; err.style.display='block'; return; }
+  if (tel.length < 6){ err.textContent = 'Le téléphone est indispensable pour les SMS.'; err.style.display='block'; return; }
+  if (pass.length < 6){ err.textContent = 'Le mot de passe doit faire au moins 6 caractères.'; err.style.display='block'; return; }
+  try{
+    await api('admin/courier', {method:'POST', body:{name, email:mail, password:pass, phone:tel}});
+    toast('✓ Compte livreur créé pour ' + name + ' !');
+    location.hash = '#/admin';
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+/* ---------- mon compte (responsable) ---------- */
 async function adminProfile(){
   let om = {};
   try{ om = (await api('admin/settings')).settings || {}; }catch(e){}

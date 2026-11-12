@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\CourierController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\StoreController;
@@ -33,11 +35,24 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
+    // Notifications (cloche de l'application, tous les rôles)
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/count', [NotificationController::class, 'count']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'read']);
+    Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy']);
+
     // Client : commandes + signalement d'un problème
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/{order}', [OrderController::class, 'show']);
+    Route::post('/orders/{order}/payment', [OrderController::class, 'payment']);
     Route::post('/orders/{order}/report', [OrderController::class, 'report']);
+
+    // Livreur : commandes à livrer
+    Route::get('/courier/orders', [CourierController::class, 'orders']);
+    Route::post('/courier/orders/{order}/accept', [CourierController::class, 'accept']);
+    Route::post('/courier/orders/{order}/delivered', [CourierController::class, 'deliver']);
 
     // Vendeur : boutique, produits, commandes reçues
     Route::get('/vendor/store', [VendorController::class, 'myStore']);
@@ -49,6 +64,7 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
     Route::post('/vendor/image', [VendorController::class, 'uploadImage']);
     Route::get('/vendor/orders', [VendorController::class, 'orders']);
     Route::put('/vendor/orders/{order}/status', [VendorController::class, 'updateOrderStatus']);
+    Route::post('/vendor/orders/{order}/payment/confirm', [VendorController::class, 'confirmPayment']);
 
     // Vendeur : son abonnement (10 000 FCFA / 30 jours)
     Route::get('/subscriptions/mine', [SubscriptionController::class, 'mine']);
@@ -60,6 +76,7 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
         Route::get('/stats', [AdminController::class, 'stats']);
         Route::get('/users', [AdminController::class, 'users']);
         Route::post('/vendor', [AdminController::class, 'createVendor']);
+        Route::post('/courier', [AdminController::class, 'createCourier']);
         Route::put('/users/{user}/role', [AdminController::class, 'updateRole']);
         Route::delete('/users/{user}', [AdminController::class, 'deleteUser']);
         Route::put('/profile', [AdminController::class, 'updateProfile']);
@@ -67,6 +84,7 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
         // Contrôle du marché : tout voir, intervenir, bloquer
         Route::get('/orders', [AdminController::class, 'orders']);
         Route::put('/orders/{order}/status', [AdminController::class, 'updateOrderStatus']);
+        Route::post('/orders/{order}/payment/confirm', [AdminController::class, 'confirmPayment']);
         Route::get('/products', [AdminController::class, 'products']);
         Route::put('/products/{product}/visibility', [AdminController::class, 'setProductVisibility']);
         Route::delete('/products/{product}', [AdminController::class, 'deleteProduct']);

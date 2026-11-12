@@ -17,6 +17,8 @@ use Illuminate\Support\Str;
  */
 class VendorController extends Controller
 {
+    public function __construct(protected \App\Services\Notifier $notifier) {}
+
     public function myStore(Request $request)
     {
         $user = $this->vendor($request);
@@ -150,7 +152,48 @@ class VendorController extends Controller
             $q->where('store_id', $store->id);
         })->findOrFail($order->id);
 
-        $order->update(['status' => $data['status']]);
+        $ancien = $order->status;
+
+        $attrs = ['status' => $data['status']];
+        if ($data['status'] === 'confirmee' && ! $order->confirmed_at) {
+            $attrs['confirmed_at'] = now();
+        }
+        if ($data['status'] === 'livree' && ! $order->delivered_at) {
+            $attrs['delivered_at'] = now();
+        }
+
+        $order->update($attrs);
+
+        if ($data['status'] === 'confirmee' && $ancien !== 'confirmee') {
+            $this->notifier->to(
+                $order->user,
+                'order_confirmed',
+                'Commande confirmée ✅',
+                "Le vendeur a confirmé votre commande {$order->reference} (".number_format($order->total, 0, ',', ' ')." FCFA). Payez par Orange Money puis déclarez le paiement dans l'application.",
+                $order,
+                ['order_id' => $order->id]
+            );
+
+            // Le livreur reçoit la demande dès la confirmation du vendeur.
+            $this->notifier->toMany(
+                $this->notifier->couriers(),
+                'delivery_request',
+                'Nouvelle livraison disponible 🛵',
+                "Commande {$order->reference} confirmée à {$order->address}. Prête à être prise en charge.",
+                $order,
+                ['order_id' => $order->id]
+            );
+        }
+
+        if ($data['status'] === 'annulee' && $ancien !== 'annulee') {
+            $this->notifier->to(
+                $order->user,
+                'order_cancelled',
+                'Commande annulée',
+                "La commande {$order->reference} a été annulée par le vendeur.",
+                $order
+            );
+        }
 
         return response()->json(
             $order->load([
@@ -160,6 +203,45 @@ class VendorController extends Controller
                 },
             ])
         );
+    }
+
+    /**
+     * Le vendeur a retrouvé l'argent Orange Money : il confirme le paiement.
+     */
+    public function confirmPayment(Request $request, Order $order)
+    {
+        $store = $this->requireStore($request);
+
+        $order = Order::whereHas('items', function ($q) use ($store) {
+            $q->where('store_id', $store->id);
+        })->findOrFail($order->id);
+
+        abort_if($order->status === 'annulee', 422, 'Cette commande est annulée.');
+
+        $order->update([
+            'payment_status' => 'paye',
+            'paid_at'        => now(),
+        ]);
+
+        $this->notifier->to(
+            $order->user,
+            'payment_confirmed',
+            'Paiement reçu 💰',
+            "Votre paiement pour la commande {$order->reference} est confirmé. La livraison peut commencer.",
+            $order,
+            ['order_id' => $order->id]
+        );
+
+        $this->notifier->toMany(
+            $this->notifier->couriers(),
+            'delivery_request',
+            'Commande payée, à livrer 🛵',
+            "Commande {$order->reference} — ".number_format($order->total, 0, ',', ' ')." FCFA — à retirer chez {$store->name}, livraison à {$order->address}.",
+            $order,
+            ['order_id' => $order->id]
+        );
+
+        return response()->json(['order' => $order->fresh(['user:id,name,phone', 'items'])]);
     }
 
     /**

@@ -6,10 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Report;
+use App\Models\User;
+use App\Services\Notifier;
 use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
+    public function __construct(protected Notifier $notifier) {}
+
     /**
      * Commandes du client connecté.
      */
@@ -107,7 +111,89 @@ class OrderController extends Controller
             Product::whereKey($productId)->decrement('stock', $qty);
         }
 
+        $order->load('items.store:id,name,user_id,phone');
+
+        $this->notifier->toMany(
+            $this->vendorsOf($order),
+            'order_created',
+            'Nouvelle commande 📥',
+            "{$request->user()->name} a commandé {$order->items->count()} article(s) pour ".number_format($order->total, 0, ',', ' ')." FCFA. Confirmez la commande dans votre espace.",
+            $order,
+            ['order_id' => $order->id]
+        );
+
+        $this->notifier->toMany(
+            $this->notifier->admins(),
+            'order_created',
+            'Nouvelle commande sur le marché',
+            "Commande {$order->reference} de {$request->user()->name} — ".number_format($order->total, 0, ',', ' ').' FCFA.',
+            $order
+        );
+
         return response()->json($order->load('items'), 201);
+    }
+
+    /**
+     * Le client déclare son paiement Orange Money (identifiant de transaction).
+     * body : { transaction_id }
+     */
+    public function payment(Request $request, Order $order)
+    {
+        $user = $request->user();
+
+        if ($order->user_id !== $user->id) {
+            abort(403, 'Cette commande ne vous appartient pas.');
+        }
+
+        abort_if($order->status === 'annulee', 422, 'Cette commande a été annulée.');
+
+        $data = $request->validate([
+            'transaction_id' => ['required', 'string', 'min:4', 'max:60'],
+        ], [
+            'transaction_id.required' => 'Indiquez l\'identifiant de la transaction Orange Money.',
+            'transaction_id.min'      => 'L\'identifiant de transaction est trop court.',
+        ]);
+
+        $order->update([
+            'payment_status' => 'declare',
+            'payment_ref'    => $data['transaction_id'],
+        ]);
+
+        $this->notifier->toMany(
+            $this->vendorsOf($order),
+            'payment_declared',
+            'Paiement Orange Money déclaré 💰',
+            "Le client {$user->name} a payé la commande {$order->reference} (".number_format($order->total, 0, ',', ' ')." FCFA). ID transaction : {$data['transaction_id']}. Vérifiez votre compte puis confirmez le paiement.",
+            $order,
+            ['order_id' => $order->id]
+        );
+
+        $this->notifier->toMany(
+            $this->notifier->admins(),
+            'payment_declared',
+            'Paiement à vérifier',
+            "Commande {$order->reference} — ID transaction {$data['transaction_id']}.",
+            $order
+        );
+
+        return response()->json([
+            'message' => 'Paiement déclaré. Le vendeur va vérifier et confirmer.',
+            'order'   => $order->fresh(['items']),
+        ]);
+    }
+
+    /** Les vendeurs concernés par la commande. */
+    protected function vendorsOf(Order $order)
+    {
+        $ids = $order->items()
+            ->with('store:id,user_id')
+            ->get()
+            ->pluck('store.user_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        return User::whereIn('id', $ids)->get();
     }
 
     /**
@@ -119,7 +205,7 @@ class OrderController extends Controller
             abort(403, 'Cette commande ne vous appartient pas.');
         }
 
-        return response()->json($order->load('items'));
+        return response()->json($order->load(['items.store:id,name,phone']));
     }
 
     /**

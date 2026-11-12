@@ -21,6 +21,8 @@ use Illuminate\Validation\Rule;
  */
 class AdminController extends Controller
 {
+    public function __construct(protected \App\Services\Notifier $notifier) {}
+
     /**
      * Statistiques générales du marché.
      */
@@ -132,15 +134,45 @@ class AdminController extends Controller
     }
 
     /**
-     * Changer le rôle d'une personne (client ↔ vendeur).
-     * body : { role: client | vendeur }
+     * Créer un compte livreur.
+     * body : { name, email, password, phone }
+     */
+    public function createCourier(Request $request)
+    {
+        $this->admin($request);
+
+        $data = $request->validate([
+            'name'     => ['required', 'string', 'min:2', 'max:100'],
+            'email'    => ['required', 'email', 'max:150', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:6'],
+            'phone'    => ['required', 'string', 'min:6', 'max:30'],
+        ], [
+            'email.unique' => 'Cette adresse e-mail est déjà utilisée.',
+            'password.min' => 'Le mot de passe doit faire au moins 6 caractères.',
+            'phone.required' => 'Le téléphone est indispensable : le livreur reçoit les demandes par SMS.',
+        ]);
+
+        $courier = User::create([
+            'name'     => $data['name'],
+            'email'    => $data['email'],
+            'password' => $data['password'],
+            'phone'    => $data['phone'],
+            'role'     => 'livreur',
+        ]);
+
+        return response()->json(['user' => $courier], 201);
+    }
+
+    /**
+     * Changer le rôle d'une personne (client ↔ vendeur ↔ livreur).
+     * body : { role: client | vendeur | livreur }
      */
     public function updateRole(Request $request, User $user)
     {
         $admin = $this->admin($request);
 
         $data = $request->validate([
-            'role' => ['required', 'in:client,vendeur'],
+            'role' => ['required', 'in:client,vendeur,livreur'],
         ]);
 
         abort_if($user->role === 'admin', 403, 'Impossible de modifier le compte d\'un responsable.');
@@ -500,12 +532,61 @@ class AdminController extends Controller
         $this->admin($request);
 
         $data = $request->validate([
-            'status' => ['required', 'in:en_attente,confirmee,livree,annulee'],
+            'status' => ['required', 'in:en_attente,confirmee,en_livraison,livree,annulee'],
         ]);
 
-        $order->update(['status' => $data['status']]);
+        $ancien = $order->status;
+        $attrs  = ['status' => $data['status']];
+        if ($data['status'] === 'confirmee' && ! $order->confirmed_at) {
+            $attrs['confirmed_at'] = now();
+        }
+        if ($data['status'] === 'livree' && ! $order->delivered_at) {
+            $attrs['delivered_at'] = now();
+        }
+
+        $order->update($attrs);
+
+        $labels = [
+            'confirmee'    => ['Commande confirmée ✅', 'Le vendeur a confirmé votre commande.'],
+            'en_livraison' => ['Commande en route 🛵', 'Votre commande est en cours de livraison.'],
+            'livree'       => ['Commande livrée ✅', 'Votre commande a bien été livrée.'],
+            'annulee'      => ['Commande annulée', 'La commande a été annulée.'],
+        ];
+
+        if ($ancien !== $data['status'] && isset($labels[$data['status']])) {
+            [$titre, $texte] = $labels[$data['status']];
+            $this->notifier->to(
+                $order->user,
+                'order_'.$data['status'],
+                $titre,
+                $texte." (Commande {$order->reference})",
+                $order,
+                ['order_id' => $order->id]
+            );
+        }
 
         return response()->json(['order' => $order->fresh(['items.store:id,name', 'user:id,name'])]);
+    }
+
+    /**
+     * Le responsable confirme aussi un paiement Orange Money.
+     */
+    public function confirmPayment(Request $request, Order $order)
+    {
+        $this->admin($request);
+
+        $order->update(['payment_status' => 'paye', 'paid_at' => now()]);
+
+        $this->notifier->to(
+            $order->user,
+            'payment_confirmed',
+            'Paiement reçu 💰',
+            "Votre paiement pour la commande {$order->reference} est confirmé.",
+            $order,
+            ['order_id' => $order->id]
+        );
+
+        return response()->json(['order' => $order->fresh()]);
     }
 
     /**

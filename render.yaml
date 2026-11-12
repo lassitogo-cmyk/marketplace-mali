@@ -45,3 +45,25 @@ services:
         value: local
       - key: BCRYPT_ROUNDS
         value: "12"
+      # Notifications par e-mail (renseigner les identifiants dans Render)
+      - key: MAIL_MAILER
+        value: log
+      - key: MAIL_HOST
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: Marketplace Mali
+      # Notifications par SMS (log = journaux ; orange = Orange SMS API)
+      - key: SMS_DRIVER
+        value: log
+      - key: ORANGE_SMS_CLIENT_ID
+        sync: false
+      - key: ORANGE_SMS_CLIENT_SECRET
+        sync: false
