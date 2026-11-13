@@ -257,13 +257,22 @@ class VendorController extends Controller
         $store = $this->requireStore($request);
 
         $data = $request->validate([
-            'image' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:6144'],
+            'image' => [
+                'required', 'file',
+                'mimes:jpg,jpeg,png,webp',
+                'max:4096',
+                'dimensions:max_width=6000,max_height=6000',
+            ],
+        ], [
+            'image.mimes'      => 'Formats acceptés : JPG, PNG ou WEBP.',
+            'image.max'        => 'Photo trop lourde (4 Mo maximum).',
+            'image.dimensions' => 'Photo trop grande (6000 pixels maximum).',
         ]);
 
         $file  = $data['image'];
         $media = Media::create([
             'mime' => $file->getMimeType() ?: 'image/jpeg',
-            'name' => $file->getClientOriginalName(),
+            'name' => mb_substr($file->getClientOriginalName(), 0, 120),
             'data' => base64_encode(file_get_contents($file->getRealPath())),
         ]);
 

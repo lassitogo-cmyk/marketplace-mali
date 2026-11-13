@@ -21,8 +21,9 @@ use Illuminate\Support\Facades\Route;
 */
 
 // ---------- Public ----------
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+// Limitation de débit : bloque le force brute et les inscriptions en masse.
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/{product}', [ProductController::class, 'show']);
@@ -44,7 +45,7 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
 
     // Client : commandes + signalement d'un problème
     Route::get('/orders', [OrderController::class, 'index']);
-    Route::post('/orders', [OrderController::class, 'store']);
+    Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:orders');
     Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::post('/orders/{order}/payment', [OrderController::class, 'payment']);
     Route::post('/orders/{order}/report', [OrderController::class, 'report']);

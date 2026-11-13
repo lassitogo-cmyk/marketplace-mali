@@ -45,6 +45,9 @@ services:
         value: local
       - key: BCRYPT_ROUNDS
         value: "12"
+      # Durée de vie d'un jeton de connexion : 30 jours (en minutes)
+      - key: SANCTUM_EXPIRATION
+        value: "43200"
       # Notifications par e-mail (renseigner les identifiants dans Render)
       - key: MAIL_MAILER
         value: log

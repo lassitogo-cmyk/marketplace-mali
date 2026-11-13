@@ -1,5 +1,14 @@
 FROM php:8.4-apache
 
+# Réglages PHP de production (expose_php Off, limites d'upload, erreurs masquées).
+COPY docker/php.ini /usr/local/etc/php/conf.d/zz-marketplace.ini
+
+# Serveur discret : pas de version dans les en-têtes.
+RUN echo "ServerTokens Prod" > /etc/apache2/conf-available/zz-discret.conf \
+    && echo "ServerSignature Off" >> /etc/apache2/conf-available/zz-discret.conf \
+    && echo "TraceEnable Off" >> /etc/apache2/conf-available/zz-discret.conf \
+    && a2enconf zz-discret
+
 # Extensions PHP nécessaires (PostgreSQL en ligne, zip, texte, cache).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libpq-dev libzip-dev libonig-dev libxml2-dev zip unzip git curl \

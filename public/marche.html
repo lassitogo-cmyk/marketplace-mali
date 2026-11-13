@@ -1310,7 +1310,7 @@ function viewRegister(){
       '<label>Nom complet *</label><input id="r-name" placeholder="Aminata Traoré">' +
       '<label>Adresse e-mail *</label><input id="r-mail" type="email" placeholder="vous@exemple.com" autocapitalize="off">' +
       '<label>Téléphone</label><input id="r-tel" type="tel" placeholder="76 00 00 00">' +
-      '<label>Mot de passe * (6 caractères min.)</label><input id="r-pass" type="password">' +
+      '<label>Mot de passe * (8 caractères min.)</label><input id="r-pass" type="password">' +
       '<div class="err" id="r-err" style="display:none"></div>' +
       '<button class="btn" onclick="app.register()">Créer mon compte</button>' +
       '<div class="center" style="margin-top:8px"><a href="#/login">J\'ai déjà un compte</a></div>' +
@@ -1323,7 +1323,7 @@ app.register = async () => {
         tel = $('#r-tel').value.trim(), pass = $('#r-pass').value;
   if (name.length < 2){ err.textContent = 'Indiquez votre nom complet.'; err.style.display='block'; return; }
   if (!mail.includes('@')){ err.textContent = 'L\'adresse e-mail semble incorrecte.'; err.style.display='block'; return; }
-  if (pass.length < 6){ err.textContent = 'Le mot de passe doit faire au moins 6 caractères.'; err.style.display='block'; return; }
+  if (pass.length < 8){ err.textContent = 'Le mot de passe doit faire au moins 8 caractères.'; err.style.display='block'; return; }
   try{
     const p = await api('register', {method:'POST', body:{
       name, email:mail, password:pass, phone: tel || null, role: 'client'}});
@@ -2603,7 +2603,7 @@ async function adminVendorForm(){
       '<label>Nom complet *</label><input id="v-name" placeholder="Ex. Kadiatou Sow">' +
       '<label>Adresse e-mail *</label><input id="v-mail" type="email" placeholder="La personne saisira cette adresse pour se connecter" autocapitalize="off">' +
       '<label>Téléphone</label><input id="v-tel" type="tel" placeholder="76 00 00 00">' +
-      '<label>Mot de passe * (à communiquer à la personne)</label><input id="v-pass" type="text" placeholder="6 caractères minimum">' +
+      '<label>Mot de passe * (à communiquer à la personne)</label><input id="v-pass" type="text" placeholder="8 caractères minimum">' +
       '<label>Nom de sa boutique (facultatif)</label><input id="v-store" placeholder="Ex. Sabali Bijoux — sinon elle le créera elle-même">' +
       '<div class="err" id="v-err" style="display:none"></div>' +
       '<button class="btn" onclick="app.createVendor()">✅ Créer le compte vendeur</button>' +
@@ -2621,7 +2621,7 @@ app.createVendor = async () => {
         store = $('#v-store').value.trim();
   if (name.length < 2){ err.textContent = 'Indiquez le nom complet de la personne.'; err.style.display='block'; return; }
   if (!mail.includes('@')){ err.textContent = 'L\'adresse e-mail semble incorrecte.'; err.style.display='block'; return; }
-  if (pass.length < 6){ err.textContent = 'Le mot de passe doit faire au moins 6 caractères.'; err.style.display='block'; return; }
+  if (pass.length < 8){ err.textContent = 'Le mot de passe doit faire au moins 8 caractères.'; err.style.display='block'; return; }
   try{
     await api('admin/vendor', {method:'POST', body:{
       name, email:mail, password:pass,
@@ -2641,7 +2641,7 @@ async function adminCourierForm(){
       '<label>Nom complet *</label><input id="c-name" placeholder="Ex. Moussa Keïta">' +
       '<label>Adresse e-mail *</label><input id="c-mail" type="email" placeholder="Livreur saissira cette adresse pour se connecter" autocapitalize="off">' +
       '<label>Téléphone * (reçoit les SMS)</label><input id="c-tel" type="tel" placeholder="76 00 00 00">' +
-      '<label>Mot de passe * (à communiquer au livreur)</label><input id="c-pass" type="text" placeholder="6 caractères minimum">' +
+      '<label>Mot de passe * (à communiquer au livreur)</label><input id="c-pass" type="text" placeholder="8 caractères minimum">' +
       '<div class="err" id="c-err" style="display:none"></div>' +
       '<button class="btn" onclick="app.createCourier()">✅ Créer le compte livreur</button>' +
     '</div>' +
@@ -2658,7 +2658,7 @@ app.createCourier = async () => {
   if (name.length < 2){ err.textContent = 'Indiquez le nom complet du livreur.'; err.style.display='block'; return; }
   if (!mail.includes('@')){ err.textContent = 'L\'adresse e-mail semble incorrecte.'; err.style.display='block'; return; }
   if (tel.length < 6){ err.textContent = 'Le téléphone est indispensable pour les SMS.'; err.style.display='block'; return; }
-  if (pass.length < 6){ err.textContent = 'Le mot de passe doit faire au moins 6 caractères.'; err.style.display='block'; return; }
+  if (pass.length < 8){ err.textContent = 'Le mot de passe doit faire au moins 8 caractères.'; err.style.display='block'; return; }
   try{
     await api('admin/courier', {method:'POST', body:{name, email:mail, password:pass, phone:tel}});
     toast('✓ Compte livreur créé pour ' + name + ' !');
@@ -2679,7 +2679,7 @@ async function adminProfile(){
       '<input id="m-mail" type="email" value="'+esc(user.email)+'" autocapitalize="off">' +
       '<label>Téléphone</label><input id="m-tel" type="tel" value="'+esc(user.phone || '')+'" placeholder="76 00 00 00">' +
       '<label>Nouveau mot de passe</label>' +
-      '<input id="m-pass" type="password" placeholder="Laisser vide pour garder l\'actuel (6 caractères min.)">' +
+      '<input id="m-pass" type="password" placeholder="Laisser vide pour garder l\'actuel (8 caractères min.)">' +
       '<div class="err" id="m-err" style="display:none"></div>' +
       '<button class="btn" onclick="app.saveProfile()">✅ Enregistrer mes informations</button>' +
     '</div>' +
@@ -2722,7 +2722,7 @@ app.saveProfile = async () => {
         pass = $('#m-pass').value;
   if (name.length < 2){ err.textContent = 'Indiquez votre nom complet.'; err.style.display='block'; return; }
   if (!mail.includes('@')){ err.textContent = 'L\'adresse e-mail semble incorrecte.'; err.style.display='block'; return; }
-  if (pass && pass.length < 6){ err.textContent = 'Le nouveau mot de passe doit faire au moins 6 caractères.'; err.style.display='block'; return; }
+  if (pass && pass.length < 8){ err.textContent = 'Le nouveau mot de passe doit faire au moins 8 caractères.'; err.style.display='block'; return; }
   try{
     const r = await api('admin/profile', {method:'PUT', body:{
       name, email:mail, phone: tel || null, password: pass || null}});

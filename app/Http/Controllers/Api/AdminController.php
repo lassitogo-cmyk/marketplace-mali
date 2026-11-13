@@ -84,17 +84,17 @@ class AdminController extends Controller
         $data = $request->validate([
             'name'       => ['required', 'string', 'min:2', 'max:100'],
             'email'      => ['required', 'email', 'max:150', 'unique:users,email'],
-            'password'   => ['required', 'string', 'min:6'],
+            'password'   => ['required', 'string', 'min:8', 'max:72'],
             'phone'      => ['nullable', 'string', 'max:30'],
             'store_name' => ['nullable', 'string', 'min:2', 'max:100'],
         ], [
             'email.unique' => 'Cette adresse e-mail est déjà utilisée par une autre personne.',
-            'password.min' => 'Le mot de passe doit faire au moins 6 caractères.',
+            'password.min' => 'Le mot de passe doit faire au moins 8 caractères.',
         ]);
 
         $vendor = User::create([
             'name'     => $data['name'],
-            'email'    => $data['email'],
+            'email'    => mb_strtolower($data['email']),
             'password' => $data['password'],
             'phone'    => $data['phone'] ?? null,
             'role'     => 'vendeur',
@@ -144,17 +144,17 @@ class AdminController extends Controller
         $data = $request->validate([
             'name'     => ['required', 'string', 'min:2', 'max:100'],
             'email'    => ['required', 'email', 'max:150', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:6'],
+            'password' => ['required', 'string', 'min:8', 'max:72'],
             'phone'    => ['required', 'string', 'min:6', 'max:30'],
         ], [
             'email.unique' => 'Cette adresse e-mail est déjà utilisée.',
-            'password.min' => 'Le mot de passe doit faire au moins 6 caractères.',
+            'password.min' => 'Le mot de passe doit faire au moins 8 caractères.',
             'phone.required' => 'Le téléphone est indispensable : le livreur reçoit les demandes par SMS.',
         ]);
 
         $courier = User::create([
             'name'     => $data['name'],
-            'email'    => $data['email'],
+            'email'    => mb_strtolower($data['email']),
             'password' => $data['password'],
             'phone'    => $data['phone'],
             'role'     => 'livreur',
@@ -244,10 +244,10 @@ class AdminController extends Controller
             'name'     => ['required', 'string', 'min:2', 'max:100'],
             'email'    => ['required', 'email', 'max:150', Rule::unique('users', 'email')->ignore($user->id)],
             'phone'    => ['nullable', 'string', 'max:30'],
-            'password' => ['nullable', 'string', 'min:6'],
+            'password' => ['nullable', 'string', 'min:8', 'max:72'],
         ], [
             'email.unique' => 'Cette adresse e-mail est déjà utilisée par une autre personne.',
-            'password.min' => 'Le mot de passe doit faire au moins 6 caractères.',
+            'password.min' => 'Le mot de passe doit faire au moins 8 caractères.',
         ]);
 
         $user->update([
