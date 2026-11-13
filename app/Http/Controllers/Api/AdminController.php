@@ -59,6 +59,7 @@ class AdminController extends Controller
 
         $query = User::query()
             ->with('store:id,name')
+            ->with('boutique:id,name')
             ->with('latestSubscription')
             ->withCount('orders')
             ->orderByDesc('id');
@@ -151,10 +152,12 @@ class AdminController extends Controller
             'email'    => ['required', 'email', 'max:150', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'max:72'],
             'phone'    => ['required', 'string', 'min:6', 'max:30'],
+            'store_id' => ['required', 'integer', 'exists:stores,id'],
         ], [
             'email.unique' => 'Cette adresse e-mail est déjà utilisée.',
             'password.min' => 'Le mot de passe doit faire au moins 8 caractères.',
             'phone.required' => 'Le téléphone est indispensable : le livreur reçoit les demandes par SMS.',
+            'store_id.required' => 'Choisissez la boutique à laquelle ce livreur appartient.',
         ]);
 
         $courier = User::create([
@@ -163,9 +166,22 @@ class AdminController extends Controller
             'password' => $data['password'],
             'phone'    => $data['phone'],
             'role'     => 'livreur',
+            'store_id' => $data['store_id'],
         ]);
 
-        return response()->json(['user' => $courier], 201);
+        return response()->json([
+            'user' => $courier->load('boutique:id,name'),
+        ], 201);
+    }
+
+    /** Toutes les boutiques (pour rattacher un livreur). */
+    public function stores(Request $request)
+    {
+        $this->admin($request);
+
+        return response()->json([
+            'data' => Store::with('user:id,name,email')->orderBy('name')->get(),
+        ]);
     }
 
     /**

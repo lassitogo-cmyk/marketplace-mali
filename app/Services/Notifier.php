@@ -87,4 +87,12 @@ class Notifier
     {
         return User::where('role', 'livreur')->get();
     }
+
+    /** Livreurs d'une boutique précise (les seuls à recevoir ses courses). */
+    public function couriersOfStore(int $storeId): \Illuminate\Support\Collection
+    {
+        return User::where('role', 'livreur')
+            ->where('store_id', $storeId)
+            ->get();
+    }
 }

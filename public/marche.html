@@ -601,8 +601,9 @@ function renderTabs(){
   ] : vendor ? [
     {href:'#/vendor', i:'📥', l:'Commandes', on: h === '#/vendor' || h === '#/vendor/'},
     {href:'#/vendor/products', i:'🏷️', l:'Produits', on: h.startsWith('#/vendor/products')},
+    {href:'#/vendor/livreurs', i:'🛵', l:'Livreurs', on: h.startsWith('#/vendor/livreurs')},
     {href:'#/vendor/store', i:'🏪', l:'Boutique', on: h.startsWith('#/vendor/store')},
-    {href:'#/vendor/abonnement', i:'💳', l:'Abonnement', on: h.startsWith('#/vendor/abonnement')},
+    {href:'#/vendor/abonnement', i:'💳', l:'Abo', on: h.startsWith('#/vendor/abonnement')},
     {href:'#/account', i:'👤', l:'Compte', on: h.startsWith('#/account')},
   ] : [
     {href:'#/home', i:'🏠', l:'Accueil', on: h.startsWith('#/home') || h.startsWith('#/product') || h === ''},
@@ -1212,7 +1213,7 @@ async function viewCourier(){
     const mine = o.courier_id === user.id;
     let act = '';
     if (o.status === 'confirmee')
-      act = '<button class="btn small" onclick="app.takeOrder('+o.id+')">🛵 Prendre la livraison</button>';
+      act = '<button class="btn small" onclick="app.takeOrder('+o.id+')">🛵 Accepter la course</button>';
     else if (o.status === 'en_livraison' && mine)
       act = '<button class="btn small" onclick="app.deliverOrder('+o.id+')">✅ Marquer livrée</button>';
 
@@ -1228,9 +1229,10 @@ async function viewCourier(){
     '</div>';
   }).join('');
 
+  const boutique = d.store ? esc(d.store.name) : 'votre boutique';
   $('#app').innerHTML = '<h2>🛵 Livraisons</h2>' +
-    '<div class="muted" style="margin:-6px 0 12px">Les commandes confirmées par les vendeurs arrivent ici automatiquement.</div>' +
-    (list || '<div class="card empty">Aucune livraison en attente pour l\'instant.</div>');
+    '<div class="muted" style="margin:-6px 0 12px">Boutique <b>'+boutique+'</b> — uniquement les courses que votre vendeur vous attribue.</div>' +
+    (list || '<div class="card empty">Aucune course attribuée pour l\'instant. Votre vendeur vous préviendra par SMS.</div>');
 }
 
 app.takeOrder = async id => {
@@ -1384,15 +1386,24 @@ async function viewVendor(parts){
   try{ vendorSub = await api('subscriptions/mine'); }catch(e){ vendorSub = null; }
   if (sub === 'abonnement') return vendorSubPage();
   if (sub === 'store')   return vendorStore();
+  if (sub === 'livreurs')return vendorCouriers();
   if (sub === 'products')return vendorProducts(parts[1]);
   vendorOrders();
 }
 
 async function vendorOrders(){
   $('#app').innerHTML = '<div class="empty">Chargement…</div>';
-  let data;
-  try{ data = await api('vendor/orders'); }
+  let data, couriers;
+  try{
+    const res = await Promise.all([
+      api('vendor/orders'),
+      api('vendor/couriers').catch(() => ({data: []})),
+    ]);
+    data     = res[0];
+    couriers = res[1].data || [];
+  }
   catch(e){ $('#app').innerHTML = vendorShell('orders', vendorErrCard(e.message)); return; }
+  app._couriers = couriers;
 
   const list = (data.data || []).map(o => {
     const mine = (o.items || []);
@@ -1407,14 +1418,16 @@ async function vendorOrders(){
                   : '') +
                 '<button class="btn small ghost" onclick="app.setStatus('+o.id+',\'livree\')">📦 Marquer livrée</button>' +
                 '<button class="btn small red" onclick="app.setStatus('+o.id+',\'annulee\')">Annuler</button>';
+    const picker = (o.status === 'confirmee' && !o.courier) ? courierPicker(o, couriers) : '';
     return '<div class="card">' +
       '<div class="iline"><b>'+esc(o.reference)+'</b><span>'+pill(o.status)+' '+payPill(o.payment_status)+'</span></div>' +
       (o.payment_status === 'declare' && o.payment_ref
         ? '<div class="muted">💰 ID transaction : <b>'+esc(o.payment_ref)+'</b></div>' : '') +
       '<div class="muted">👤 '+esc(o.user && o.user.name || 'Client')+
         (o.user && o.user.phone ? ' · '+esc(o.user.phone) : '')+' · '+ddate(o.created_at)+'</div>' +
-      (o.courier ? '<div class="muted">🛵 Livreur : '+esc(o.courier.name)+
-        (o.courier.phone ? ' · 📞 '+esc(o.courier.phone) : '')+'</div>' : '') +
+      (o.courier ? '<div class="muted">🛵 Livreur : <b>'+esc(o.courier.name)+'</b>'+
+        (o.courier.phone ? ' · 📞 '+esc(o.courier.phone) : '')+
+        (o.status === 'en_livraison' ? ' · <span style="color:var(--green)">en route</span>' : '')+'</div>' : '') +
       ((o.reports || []).length
         ? o.reports.map(r => '<div class="demo" style="margin-top:8px;border-left:3px solid #B91C1C">' +
             '<b>🚨 Problème signalé</b> <span class="muted">'+ddate(r.created_at)+'</span><br>'+esc(r.message) +
@@ -1424,6 +1437,7 @@ async function vendorOrders(){
               : '') +
           '</div>').join('')
         : '') +
+      picker +
       '<div class="sep"></div>' +
       mine.map(it => '<div class="iline"><span>'+esc(it.product_name)+(it.variant ? ' <span class="muted">· '+esc(it.variant)+'</span>' : '')+' ×'+it.qty+'</span><b>'+fcfa(it.subtotal)+'</b></div>').join('') +
       '<div class="iline" style="border:0"><b>Ma part</b><b style="color:var(--green)">'+fcfa(part)+'</b></div>' +
@@ -1434,6 +1448,125 @@ async function vendorOrders(){
   $('#app').innerHTML = vendorShell('orders',
     list || '<div class="card empty">Aucune commande reçue pour l\'instant.</div>');
 }
+
+/* ---------- mes livreurs (propres à ma boutique) ---------- */
+
+async function vendorCouriers(){
+  $('#app').innerHTML = '<div class="empty">Chargement…</div>';
+  let res;
+  try{ res = await api('vendor/couriers'); }
+  catch(e){ $('#app').innerHTML = vendorShell('livreurs', vendorErrCard(e.message)); return; }
+  app._myCouriers = res.data || [];
+
+  const rows = app._myCouriers.map(x =>
+    '<div class="card">' +
+      '<div class="iline"><b>🛵 '+esc(x.name)+'</b>' +
+        (x.blocked_at ? '<span class="pill" style="color:#B91C1C;background:#FEE2E2">bloqué</span>' : '') + '</div>' +
+      '<div class="muted">📞 '+esc(x.phone || '—')+' · ✉️ '+esc(x.email)+'</div>' +
+      '<div class="muted" style="margin-top:4px">🚚 '+(x.en_cours||0)+' en cours · ✅ '+(x.livrees||0)+' livrée(s)</div>' +
+      '<div style="margin-top:8px">' +
+        '<button class="btn small" onclick="app.courierFollow('+x.id+')">📍 Suivre ses livraisons</button>' +
+        '<button class="btn small ghost" onclick="app.resetCourierPassword('+x.id+')">🔑 Mot de passe</button>' +
+      '</div>' +
+      '<div id="follow-'+x.id+'"></div>' +
+    '</div>').join('');
+
+  const form = '<div class="card">' +
+    '<h3>＋ Créer un livreur pour ma boutique</h3>' +
+    '<div class="muted" style="margin:0 0 8px">Ce livreur ne verra que les courses que vous lui attribuez, jamais celles des autres boutiques.</div>' +
+    '<label>Nom complet *</label><input id="lc-name" placeholder="Ex. Moussa Keïta">' +
+    '<label>Adresse e-mail * (son identifiant de connexion)</label><input id="lc-mail" type="email" placeholder="livreur@exemple.com" autocapitalize="off">' +
+    '<label>Téléphone * (reçoit les SMS)</label><input id="lc-tel" type="tel" placeholder="76 00 00 00">' +
+    '<label>Mot de passe * (à lui communiquer)</label><input id="lc-pass" type="text" placeholder="8 caractères minimum">' +
+    '<div class="err" id="lc-err" style="display:none"></div>' +
+    '<button class="btn" onclick="app.createVendorCourier()">✅ Créer ce livreur</button>' +
+  '</div>';
+
+  $('#app').innerHTML = vendorShell('livreurs',
+    (app._myCouriers.length
+      ? '<h3>Mes livreurs ('+app._myCouriers.length+')</h3>' + rows
+      : '<div class="card empty">Aucun livreur pour l\'instant. Créez le vôtre ci-dessous, puis attribuez-lui vos courses.</div>') +
+    form);
+}
+
+app.createVendorCourier = async () => {
+  const err = $('#lc-err'); err.style.display = 'none';
+  const name = $('#lc-name').value.trim(),
+        mail = $('#lc-mail').value.trim(),
+        tel  = $('#lc-tel').value.trim(),
+        pass = $('#lc-pass').value;
+  if (name.length < 2){ err.textContent = 'Indiquez le nom complet du livreur.'; err.style.display='block'; return; }
+  if (!mail.includes('@')){ err.textContent = 'L\'adresse e-mail semble incorrecte.'; err.style.display='block'; return; }
+  if (tel.length < 6){ err.textContent = 'Le téléphone est indispensable pour les SMS.'; err.style.display='block'; return; }
+  if (pass.length < 8){ err.textContent = 'Le mot de passe doit faire au moins 8 caractères.'; err.style.display='block'; return; }
+  try{
+    await api('vendor/couriers', {method:'POST', body:{name, email:mail, phone:tel, password:pass}});
+    toast('✓ Livreur créé. Donnez-lui son e-mail et son mot de passe.');
+    vendorCouriers();
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+app.courierFollow = async id => {
+  const box = document.getElementById('follow-' + id);
+  if (!box) return;
+  if (box.dataset.open === '1'){ box.dataset.open='0'; box.innerHTML=''; return; }
+  box.dataset.open = '1';
+  box.innerHTML = '<div class="muted" style="margin-top:8px">Chargement…</div>';
+  try{
+    const d = await api('vendor/couriers/' + id + '/deliveries');
+    const rows = (d.data || []).map(o =>
+      '<div style="border-top:1px dashed var(--line);padding:8px 0">' +
+        '<div class="iline"><b>'+esc(o.reference)+'</b>'+pill(o.status)+'</div>' +
+        '<div class="muted">📍 '+esc(o.address)+' · 👤 '+esc(o.user && o.user.name || 'Client')+'</div>' +
+        '<div class="muted">'+ddate(o.created_at)+(o.delivered_at ? ' · livrée le '+ddate(o.delivered_at) : '')+'</div>' +
+      '</div>').join('');
+    box.innerHTML = '<div style="background:#F6F8F6;border-radius:10px;padding:10px;margin-top:8px">' +
+      '<b>📍 Livraisons de '+esc(d.courier.name)+'</b>' +
+      (rows || '<div class="muted" style="margin-top:6px">Aucune course attribuée pour l\'instant.</div>') +
+    '</div>';
+  }catch(e){ box.innerHTML = '<div class="err" style="display:block;margin-top:8px">'+esc(e.message)+'</div>'; }
+};
+
+app.resetCourierPassword = async id => {
+  const c = (app._myCouriers || []).find(x => x.id === id);
+  const pass = prompt('Nouveau mot de passe pour ' + (c ? c.name : 'ce livreur') +
+    ' (8 caractères minimum).\nSes appareils seront déconnectés.');
+  if (pass === null) return;
+  if (pass.length < 8) return toast('Le mot de passe doit faire au moins 8 caractères.');
+  try{
+    await api('vendor/couriers/' + id, {method:'PUT', body:{password: pass}});
+    toast('✓ Mot de passe changé. Communiquez-le au livreur.');
+  }catch(e){ toast(e.message); }
+};
+
+/** Choix du livreur de la boutique pour une commande confirmée. */
+function courierPicker(o, couriers){
+  if (!couriers.length){
+    return '<div class="demo" style="margin-top:8px;border:1.5px solid #FDBA74">' +
+      '🛵 <b>Aucun livreur dans votre boutique.</b><br>' +
+      'Créez votre livreur une fois, puis attribuez-lui vos courses : ' +
+      '<a href="#/vendor/livreurs">créer un livreur</a>.</div>';
+  }
+  return '<div style="margin-top:8px">' +
+    '<select id="cour-'+o.id+'">' +
+      couriers.map(c => '<option value="'+c.id+'">🛵 '+esc(c.name)+
+        (c.phone ? ' · '+esc(c.phone) : '')+'</option>').join('') +
+    '</select>' +
+    '<button class="btn small" style="margin-top:6px" onclick="app.assignCourier('+o.id+')">🛵 Attribuer à ce livreur</button>' +
+  '</div>';
+}
+
+app.assignCourier = async id => {
+  const sel = document.getElementById('cour-' + id);
+  const courierId = sel ? Number(sel.value) : 0;
+  if (!courierId) return toast('Choisissez un livreur.');
+  try{
+    const r = await api('vendor/orders/' + id + '/courier', {method:'POST',
+      body:{courier_id: courierId}});
+    toast('✓ ' + (r.message || 'Course attribuée.'));
+    vendorOrders();
+  }catch(e){ toast(e.message); }
+};
 
 app.setStatus = async (id, status) => {
   try{
@@ -1719,6 +1852,7 @@ app.saveStore = async () => {
 const VENDOR_TITLES = {
   orders:     {t:'📥 Commandes reçues', s:'Les commandes de vos clients'},
   products:   {t:'🏷️ Mes produits',     s:'Ce que vous vendez sur le marché'},
+  livreurs:   {t:'🛵 Mes livreurs',      s:'Vos livreurs ne voient que les commandes de votre boutique'},
   store:      {t:'🏪 Ma boutique',      s:'Vos informations de vendeur'},
   abonnement: {t:'💳 Mon abonnement',   s:'10 000 FCFA / 30 jours'},
 };
@@ -2020,6 +2154,7 @@ function renderUserList(){
     const estAdmin   = u.role === 'admin';
     const detail = estAdmin ? 'Responsable du marché'
       : estVendeur ? '🏪 ' + (u.store && u.store.name || 'sans boutique')
+      : u.role === 'livreur' ? '🛵 Livreur · ' + (u.boutique && u.boutique.name || 'sans boutique')
       : '📦 ' + u.orders_count + ' commande(s)';
     let actions = '';
     // État de l'abonnement (vendeurs uniquement)
@@ -2746,19 +2881,37 @@ app.createVendor = async () => {
 /* ---------- créer un compte livreur ---------- */
 
 async function adminCourierForm(){
+  $('#app').innerHTML = '<div class="empty">Chargement…</div>';
+  let stores = [];
+  try{ stores = (await api('admin/stores')).data || []; }
+  catch(e){
+    $('#app').innerHTML = '<h2>🛵 Créer un compte livreur</h2>' +
+      '<div class="card err" style="display:block">'+esc(e.message)+'</div>';
+    return;
+  }
+
   $('#app').innerHTML =
     '<h2>🛵 Créer un compte livreur</h2>' +
-    '<div class="muted" style="margin:-6px 0 12px">Le livreur reçoit les commandes confirmées par les vendeurs.</div>' +
+    '<div class="muted" style="margin:-6px 0 12px">Le livreur ne verra que les courses de la boutique choisie.</div>' +
     '<div class="card">' +
+      '<label>Boutique du livreur *</label>' +
+      '<select id="c-store">' +
+        (stores.length
+          ? stores.map(s => '<option value="'+s.id+'">🏪 '+esc(s.name)+
+              (s.user ? ' — '+esc(s.user.name) : '')+'</option>').join('')
+          : '<option value="">— Aucune boutique —</option>') +
+      '</select>' +
       '<label>Nom complet *</label><input id="c-name" placeholder="Ex. Moussa Keïta">' +
-      '<label>Adresse e-mail *</label><input id="c-mail" type="email" placeholder="Livreur saissira cette adresse pour se connecter" autocapitalize="off">' +
+      '<label>Adresse e-mail *</label><input id="c-mail" type="email" placeholder="Le livreur saisira cette adresse pour se connecter" autocapitalize="off">' +
       '<label>Téléphone * (reçoit les SMS)</label><input id="c-tel" type="tel" placeholder="76 00 00 00">' +
       '<label>Mot de passe * (à communiquer au livreur)</label><input id="c-pass" type="text" placeholder="8 caractères minimum">' +
       '<div class="err" id="c-err" style="display:none"></div>' +
       '<button class="btn" onclick="app.createCourier()">✅ Créer le compte livreur</button>' +
     '</div>' +
-    '<div class="card demo">💡 Le livreur se connecte avec son e-mail et arrive directement sur ses livraisons. ' +
-      'Il reçoit chaque nouvelle course dans l\'application, par e-mail et par SMS.</div>';
+    (stores.length
+      ? '<div class="card demo">💡 En général, c\'est le vendeur lui-même qui crée ses livreurs dans son espace ' +
+          '« 🛵 Livreurs » et leur attribue ses courses. Utilisez ce formulaire seulement pour aider un vendeur.</div>'
+      : '<div class="card err" style="display:block">Aucune boutique n\'existe encore. Créez d\'abord un compte vendeur.</div>');
 }
 
 app.createCourier = async () => {
@@ -2766,13 +2919,15 @@ app.createCourier = async () => {
   const name = $('#c-name').value.trim(),
         mail = $('#c-mail').value.trim(),
         tel  = $('#c-tel').value.trim(),
-        pass = $('#c-pass').value;
+        pass = $('#c-pass').value,
+        store = $('#c-store') ? Number($('#c-store').value) : 0;
+  if (!store){ err.textContent = 'Choisissez la boutique du livreur.'; err.style.display='block'; return; }
   if (name.length < 2){ err.textContent = 'Indiquez le nom complet du livreur.'; err.style.display='block'; return; }
   if (!mail.includes('@')){ err.textContent = 'L\'adresse e-mail semble incorrecte.'; err.style.display='block'; return; }
   if (tel.length < 6){ err.textContent = 'Le téléphone est indispensable pour les SMS.'; err.style.display='block'; return; }
   if (pass.length < 8){ err.textContent = 'Le mot de passe doit faire au moins 8 caractères.'; err.style.display='block'; return; }
   try{
-    await api('admin/courier', {method:'POST', body:{name, email:mail, password:pass, phone:tel}});
+    await api('admin/courier', {method:'POST', body:{name, email:mail, password:pass, phone:tel, store_id:store}});
     toast('✓ Compte livreur créé pour ' + name + ' !');
     location.hash = '#/admin';
   }catch(e){ err.textContent = e.message; err.style.display = 'block'; }

@@ -176,25 +176,34 @@ class VendorController extends Controller
                 ['order_id' => $order->id]
             );
 
-            // Le livreur reçoit la demande dès la confirmation du vendeur.
-            $couriers = $this->notifier->couriers();
+            // Les livreurs de CETTE boutique sont prévenus (pas ceux des autres).
+            $couriers = $this->notifier->couriersOfStore($store->id);
 
             $this->notifier->toMany(
                 $couriers,
                 'delivery_request',
                 'Nouvelle livraison disponible 🛵',
-                "Commande {$order->reference} confirmée à {$order->address}. Prête à être prise en charge.",
+                "Commande {$order->reference} confirmée à {$order->address}. Le vendeur peut vous l'attribuer.",
                 $order,
                 ['order_id' => $order->id]
             );
 
-            // Aucun livreur disponible : le responsable est prévenu pour agir.
+            // Aucun livreur dans la boutique : le vendeur et le responsable sont prévenus.
             if ($couriers->isEmpty()) {
+                $this->notifier->to(
+                    $request->user(),
+                    'delivery_request',
+                    'Aucun livreur dans votre boutique ⚠️',
+                    "La commande {$order->reference} est confirmée. Créez un livreur dans « 🛵 Livreurs » puis attribuez-lui la course.",
+                    $order,
+                    ['order_id' => $order->id]
+                );
+
                 $this->notifier->toMany(
                     $this->notifier->admins(),
                     'delivery_request',
                     'Aucun livreur disponible ⚠️',
-                    "La commande {$order->reference} est confirmée mais aucun livreur n'est inscrit. Créez un compte livreur ou organisez la livraison.",
+                    "La commande {$order->reference} est confirmée mais la boutique {$store->name} n'a aucun livreur.",
                     $order,
                     ['order_id' => $order->id]
                 );
@@ -252,7 +261,9 @@ class VendorController extends Controller
         );
 
         $this->notifier->toMany(
-            $this->notifier->couriers(),
+            $order->courier_id
+                ? \App\Models\User::whereKey($order->courier_id)->get()
+                : $this->notifier->couriersOfStore($store->id),
             'delivery_request',
             'Commande payée, à livrer 🛵',
             "Commande {$order->reference} — ".number_format($order->total, 0, ',', ' ')." FCFA — à retirer chez {$store->name}, livraison à {$order->address}.",
@@ -261,6 +272,170 @@ class VendorController extends Controller
         );
 
         return response()->json(['order' => $order->fresh(['user:id,name,phone', 'items'])]);
+    }
+
+    /* ------------------------------------------------------------ livreurs */
+
+    /** Les livreurs de ma boutique, avec le nombre de courses en cours. */
+    public function couriers(Request $request)
+    {
+        $store = $this->requireStore($request);
+
+        $couriers = User::where('role', 'livreur')
+            ->where('store_id', $store->id)
+            ->withCount([
+                'deliveries as en_cours' => fn ($q) => $q->where('status', 'en_livraison'),
+                'deliveries as livrees'  => fn ($q) => $q->where('status', 'livree'),
+            ])
+            ->orderBy('name')
+            ->get();
+
+        return response()->json(['data' => $couriers]);
+    }
+
+    /**
+     * Créer un livreur pour SA boutique.
+     * body : { name, email, password, phone }
+     */
+    public function createCourier(Request $request)
+    {
+        $store = $this->requireStore($request);
+        $this->vendor($request);
+
+        $data = $request->validate([
+            'name'     => ['required', 'string', 'min:2', 'max:100'],
+            'email'    => ['required', 'email', 'max:150', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8', 'max:72'],
+            'phone'    => ['required', 'string', 'min:6', 'max:30'],
+        ], [
+            'email.unique'   => 'Cette adresse e-mail est déjà utilisée.',
+            'password.min'   => 'Le mot de passe doit faire au moins 8 caractères.',
+            'phone.required' => 'Le téléphone est indispensable : le livreur reçoit les courses par SMS.',
+        ]);
+
+        abort_if(
+            User::where('role', 'livreur')->where('store_id', $store->id)->count() >= 20,
+            422,
+            'Vous avez atteint la limite de 20 livreurs pour cette boutique.'
+        );
+
+        $courier = User::create([
+            'name'     => $data['name'],
+            'email'    => mb_strtolower($data['email']),
+            'password' => $data['password'],
+            'phone'    => $data['phone'],
+            'role'     => 'livreur',
+            'store_id' => $store->id,
+        ]);
+
+        return response()->json(['courier' => $courier], 201);
+    }
+
+    /**
+     * Modifier un de mes livreurs (nom, téléphone, mot de passe).
+     */
+    public function updateCourier(Request $request, User $courier)
+    {
+        $store = $this->requireStore($request);
+        $this->assertMyCourier($store, $courier);
+
+        $data = $request->validate([
+            'name'     => ['sometimes', 'string', 'min:2', 'max:100'],
+            'phone'    => ['sometimes', 'string', 'min:6', 'max:30'],
+            'password' => ['sometimes', 'string', 'min:8', 'max:72'],
+        ], [
+            'password.min' => 'Le mot de passe doit faire au moins 8 caractères.',
+        ]);
+
+        $courier->update($data);
+
+        if (isset($data['password'])) {
+            $courier->tokens()->delete();   // déconnecte les anciens appareils
+        }
+
+        return response()->json(['courier' => $courier->fresh()]);
+    }
+
+    /**
+     * Attribuer une commande à un de mes livreurs (il reçoit un SMS).
+     * body : { courier_id }
+     */
+    public function assignCourier(Request $request, Order $order)
+    {
+        $store = $this->requireStore($request);
+        $this->vendor($request);
+
+        $data = $request->validate([
+            'courier_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        $courier = User::where('role', 'livreur')->findOrFail($data['courier_id']);
+        $this->assertMyCourier($store, $courier);
+
+        abort_if($courier->estBloque(), 422, 'Ce livreur est bloqué.');
+
+        $order = Order::whereHas('items', function ($q) use ($store) {
+            $q->where('store_id', $store->id);
+        })->findOrFail($order->id);
+
+        abort_if(
+            in_array($order->status, ['annulee', 'livree'], true),
+            422,
+            'Cette commande est terminée ou annulée.'
+        );
+
+        abort_if(
+            $order->courier_id && (int) $order->courier_id !== (int) $courier->id,
+            409,
+            'Cette commande est déjà attribuée à un autre livreur.'
+        );
+
+        $order->update(['courier_id' => $courier->id]);
+
+        $this->notifier->to(
+            $courier,
+            'delivery_request',
+            'Course attribuée 🛵',
+            "La boutique {$store->name} vous confie la commande {$order->reference} à {$order->address}. Ouvrez votre espace Livraisons.",
+            $order,
+            ['order_id' => $order->id]
+        );
+
+        return response()->json([
+            'order'   => $order->fresh(['courier:id,name,phone', 'user:id,name,phone']),
+            'message' => "Commande attribuée à {$courier->name}. Il est prévenu par SMS.",
+        ]);
+    }
+
+    /** Suivi : les livraisons d'un livreur de ma boutique. */
+    public function courierDeliveries(Request $request, User $courier)
+    {
+        $store = $this->requireStore($request);
+        $this->assertMyCourier($store, $courier);
+
+        $orders = Order::where('courier_id', $courier->id)
+            ->with([
+                'user:id,name,phone',
+                'items' => fn ($q) => $q->where('store_id', $store->id),
+            ])
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'courier' => $courier->only(['id', 'name', 'phone', 'email', 'blocked_at']),
+            'data'    => $orders,
+        ]);
+    }
+
+    /** Vérifie que ce livreur appartient bien à la boutique du vendeur. */
+    private function assertMyCourier(Store $store, User $courier): void
+    {
+        abort_unless(
+            $courier->role === 'livreur' && (int) $courier->store_id === (int) $store->id,
+            403,
+            "Ce livreur n'appartient pas à votre boutique."
+        );
     }
 
     /**

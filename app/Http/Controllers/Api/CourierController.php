@@ -25,7 +25,8 @@ class CourierController extends Controller
     }
 
     /**
-     * Commandes à livrer : confirmées (libres) + celles prises en charge par moi.
+     * Mes courses : uniquement les commandes que MON vendeur m'a attribuées.
+     * Un livreur ne voit jamais les commandes des autres boutiques.
      */
     public function orders(Request $request)
     {
@@ -36,30 +37,31 @@ class CourierController extends Controller
             'items:id,order_id,store_id,product_name,variant,qty,unit_price,subtotal',
             'items.store:id,name,phone',
         ])
-            ->where(function ($q) use ($user) {
-                $q->where('status', 'confirmee')
-                    ->orWhere(function ($q2) use ($user) {
-                        $q2->where('status', 'en_livraison')->where('courier_id', $user->id);
-                    });
-            })
+            ->where('courier_id', $user->id)
+            ->whereIn('status', ['confirmee', 'en_livraison'])
             ->orderByDesc('id')
             ->get();
 
-        return response()->json(['data' => $orders]);
+        return response()->json([
+            'data'   => $orders,
+            'store'  => $user->boutique?->only(['id', 'name', 'phone']),
+        ]);
     }
 
-    /** Le livreur prend la commande en charge. */
+    /** Le livreur accepte la course que son vendeur lui a attribuée. */
     public function accept(Request $request, Order $order)
     {
         $user = $this->courier($request);
 
-        abort_unless($order->status === 'confirmee', 422, 'Cette commande n\'est pas prête à être livrée.');
-        abort_if($order->courier_id && $order->courier_id !== $user->id, 409, 'Un autre livreur a déjà pris cette commande.');
+        abort_unless(
+            (int) $order->courier_id === (int) $user->id,
+            403,
+            'Cette course ne vous a pas été attribuée par le vendeur.'
+        );
 
-        $order->update([
-            'courier_id' => $user->id,
-            'status'     => 'en_livraison',
-        ]);
+        abort_unless($order->status === 'confirmee', 422, 'Cette commande n\'est pas prête à être livrée.');
+
+        $order->update(['status' => 'en_livraison']);
 
         $this->notifier->to(
             $order->user,

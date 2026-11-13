@@ -17,6 +17,7 @@ class User extends Authenticatable
         'password',
         'phone',
         'role',
+        'store_id',
         'blocked_at',
         'blocked_reason',
     ];
@@ -59,6 +60,18 @@ class User extends Authenticatable
     public function store()
     {
         return $this->hasOne(Store::class);
+    }
+
+    /** Boutique à laquelle appartient un livreur. */
+    public function boutique()
+    {
+        return $this->belongsTo(Store::class, 'store_id');
+    }
+
+    /** Commandes que ce livreur a prises en charge. */
+    public function deliveries()
+    {
+        return $this->hasMany(Order::class, 'courier_id');
     }
 
     public function orders()

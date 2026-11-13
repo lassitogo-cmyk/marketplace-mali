@@ -70,6 +70,13 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
     Route::put('/vendor/orders/{order}/status', [VendorController::class, 'updateOrderStatus']);
     Route::post('/vendor/orders/{order}/payment/confirm', [VendorController::class, 'confirmPayment']);
 
+    // Vendeur : ses livreurs (créés par lui, propres à sa boutique)
+    Route::get('/vendor/couriers', [VendorController::class, 'couriers']);
+    Route::post('/vendor/couriers', [VendorController::class, 'createCourier']);
+    Route::put('/vendor/couriers/{courier}', [VendorController::class, 'updateCourier']);
+    Route::get('/vendor/couriers/{courier}/deliveries', [VendorController::class, 'courierDeliveries']);
+    Route::post('/vendor/orders/{order}/courier', [VendorController::class, 'assignCourier']);
+
     // Vendeur : son abonnement (10 000 FCFA / 30 jours)
     Route::get('/subscriptions/mine', [SubscriptionController::class, 'mine']);
     Route::post('/subscriptions/request', [SubscriptionController::class, 'demander']);
@@ -79,6 +86,7 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
     Route::prefix('admin')->group(function () {
         Route::get('/stats', [AdminController::class, 'stats']);
         Route::get('/users', [AdminController::class, 'users']);
+        Route::get('/stores', [AdminController::class, 'stores']);
         Route::post('/vendor', [AdminController::class, 'createVendor']);
         Route::post('/courier', [AdminController::class, 'createCourier']);
         Route::put('/users/{user}/role', [AdminController::class, 'updateRole']);
