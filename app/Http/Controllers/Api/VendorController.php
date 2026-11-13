@@ -126,6 +126,8 @@ class VendorController extends Controller
             })
             ->with([
                 'user:id,name,phone',
+                'courier:id,name,phone',
+                'reports' => fn ($q) => $q->latest(),
                 'items' => function ($q) use ($store) {
                     $q->where('store_id', $store->id);
                 },
@@ -175,17 +177,34 @@ class VendorController extends Controller
             );
 
             // Le livreur reçoit la demande dès la confirmation du vendeur.
+            $couriers = $this->notifier->couriers();
+
             $this->notifier->toMany(
-                $this->notifier->couriers(),
+                $couriers,
                 'delivery_request',
                 'Nouvelle livraison disponible 🛵',
                 "Commande {$order->reference} confirmée à {$order->address}. Prête à être prise en charge.",
                 $order,
                 ['order_id' => $order->id]
             );
+
+            // Aucun livreur disponible : le responsable est prévenu pour agir.
+            if ($couriers->isEmpty()) {
+                $this->notifier->toMany(
+                    $this->notifier->admins(),
+                    'delivery_request',
+                    'Aucun livreur disponible ⚠️',
+                    "La commande {$order->reference} est confirmée mais aucun livreur n'est inscrit. Créez un compte livreur ou organisez la livraison.",
+                    $order,
+                    ['order_id' => $order->id]
+                );
+            }
         }
 
         if ($data['status'] === 'annulee' && $ancien !== 'annulee') {
+            // Les produits retournent dans le stock de la boutique.
+            $order->restoreStock();
+
             $this->notifier->to(
                 $order->user,
                 'order_cancelled',

@@ -35,6 +35,8 @@ Route::get('/stores/{store}', [StoreController::class, 'show']);
 Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/me', [AuthController::class, 'updateMe']);
+    Route::put('/me/password', [AuthController::class, 'updatePassword']);
 
     // Notifications (cloche de l'application, tous les rôles)
     Route::get('/notifications', [NotificationController::class, 'index']);
@@ -48,6 +50,7 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
     Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:orders');
     Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::post('/orders/{order}/payment', [OrderController::class, 'payment']);
+    Route::post('/orders/{order}/cancel', [OrderController::class, 'cancel']);
     Route::post('/orders/{order}/report', [OrderController::class, 'report']);
 
     // Livreur : commandes à livrer
@@ -79,6 +82,7 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
         Route::post('/vendor', [AdminController::class, 'createVendor']);
         Route::post('/courier', [AdminController::class, 'createCourier']);
         Route::put('/users/{user}/role', [AdminController::class, 'updateRole']);
+        Route::put('/users/{user}/password', [AdminController::class, 'resetPassword']);
         Route::delete('/users/{user}', [AdminController::class, 'deleteUser']);
         Route::put('/profile', [AdminController::class, 'updateProfile']);
 
@@ -92,6 +96,7 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
         Route::post('/users/{user}/block', [AdminController::class, 'blockUser']);
         Route::post('/users/{user}/unblock', [AdminController::class, 'unblockUser']);
         Route::get('/reports', [AdminController::class, 'reports']);
+        Route::post('/reports/{report}/reply', [AdminController::class, 'replyReport']);
         Route::put('/reports/{report}/resolve', [AdminController::class, 'resolveReport']);
 
         // Abonnements vendeurs : activation, désactivation, suivi

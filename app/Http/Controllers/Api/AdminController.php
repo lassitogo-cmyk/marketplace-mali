@@ -55,12 +55,17 @@ class AdminController extends Controller
         $this->admin($request);
 
         $search = trim((string) $request->query('search', ''));
+        $role   = (string) $request->query('role', 'tous');
 
         $query = User::query()
             ->with('store:id,name')
             ->with('latestSubscription')
             ->withCount('orders')
             ->orderByDesc('id');
+
+        if (in_array($role, ['client', 'vendeur', 'livreur', 'admin'], true)) {
+            $query->where('role', $role);
+        }
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -230,6 +235,37 @@ class AdminController extends Controller
         $user->delete();
 
         return response()->json(['message' => 'Compte supprimé.']);
+    }
+
+    /**
+     * Réinitialiser le mot de passe d'une personne.
+     * body : { password }
+     */
+    public function resetPassword(Request $request, User $user)
+    {
+        $admin = $this->admin($request);
+
+        abort_if(
+            $user->role === 'admin' && $user->id !== $admin->id,
+            403,
+            'Le mot de passe d\'un responsable ne peut pas être réinitialisé ici.'
+        );
+
+        $data = $request->validate([
+            'password' => ['required', 'string', 'min:8', 'max:72'],
+        ], [
+            'password.required' => 'Indiquez le nouveau mot de passe.',
+            'password.min'      => 'Le mot de passe doit faire au moins 8 caractères.',
+        ]);
+
+        $user->update(['password' => $data['password']]);
+
+        // Toutes les sessions existantes sont coupées.
+        $user->tokens()->delete();
+
+        return response()->json([
+            'message' => 'Mot de passe réinitialisé. La personne doit se reconnecter.',
+        ]);
     }
 
     /**
@@ -504,11 +540,13 @@ class AdminController extends Controller
         $query = Order::query()
             ->with([
                 'user:id,name,email,phone',
+                'courier:id,name,phone',
+                'reports' => fn ($q) => $q->latest(),
                 'items.store:id,name',
             ])
             ->orderByDesc('id');
 
-        if (in_array($status, ['en_attente', 'confirmee', 'livree', 'annulee'], true)) {
+        if (in_array($status, ['en_attente', 'confirmee', 'en_livraison', 'livree', 'annulee'], true)) {
             $query->where('status', $status);
         }
 
@@ -546,6 +584,11 @@ class AdminController extends Controller
 
         $order->update($attrs);
 
+        // Commande annulée : les produits retournent dans le stock du vendeur.
+        if ($data['status'] === 'annulee' && $ancien !== 'annulee') {
+            $order->restoreStock();
+        }
+
         $labels = [
             'confirmee'    => ['Commande confirmée ✅', 'Le vendeur a confirmé votre commande.'],
             'en_livraison' => ['Commande en route 🛵', 'Votre commande est en cours de livraison.'],
@@ -560,6 +603,23 @@ class AdminController extends Controller
                 'order_'.$data['status'],
                 $titre,
                 $texte." (Commande {$order->reference})",
+                $order,
+                ['order_id' => $order->id]
+            );
+
+            // Les vendeurs concernés sont informés de la décision du responsable.
+            $vendorIds = $order->items()
+                ->with('store:id,user_id')
+                ->get()
+                ->pluck('store.user_id')
+                ->filter()
+                ->unique();
+
+            $this->notifier->toMany(
+                User::whereIn('id', $vendorIds)->get(),
+                'order_'.$data['status'],
+                'Commande '.$order->reference.' : '.$data['status'],
+                "Le responsable du marché a changé le statut de la commande {$order->reference} en « {$data['status']} ».",
                 $order,
                 ['order_id' => $order->id]
             );
@@ -711,7 +771,7 @@ class AdminController extends Controller
                 'user:id,name,email,phone',
                 'order:id,reference,total,status',
                 'store:id,name,user_id',
-                'store.user:id,name,email,blocked_at',
+                'store.user:id,name,email,phone,blocked_at',
             ])
             ->orderByDesc('id');
 
@@ -723,19 +783,143 @@ class AdminController extends Controller
     }
 
     /**
-     * Marquer un signalement comme traité.
+     * Envoyer un message du responsable au client et/ou au vendeur
+     * à propos d'un signalement (le vendeur est prévenu par SMS).
+     */
+    public function replyReport(Request $request, Report $report)
+    {
+        $admin = $this->admin($request);
+
+        $data = $request->validate([
+            'message' => ['required', 'string', 'min:2', 'max:2000'],
+            'send_to' => ['nullable', 'in:client,vendeur,tous'],
+        ], [
+            'message.required' => 'Écrivez votre message avant de l\'envoyer.',
+            'message.min'      => 'Votre message est trop court.',
+        ]);
+
+        $destinataire = $data['send_to'] ?? 'tous';
+        $order        = $report->order;
+        $suffixe      = $order ? " (Commande {$order->reference})" : '';
+
+        $report->update([
+            'admin_reply' => $data['message'],
+            'handled_by'  => $admin->id,
+            'handled_at'  => now(),
+        ]);
+
+        if (in_array($destinataire, ['client', 'tous'], true)) {
+            $this->notifier->to(
+                $report->user,
+                'report_reply',
+                'Réponse du responsable du marché',
+                $data['message'].$suffixe,
+                $order,
+                ['order_id' => $order?->id, 'report_id' => $report->id]
+            );
+        }
+
+        if (in_array($destinataire, ['vendeur', 'tous'], true)) {
+            $vendors = $this->vendorsOfReport($report);
+
+            $this->notifier->toMany(
+                $vendors,
+                'report_vendor_alert',
+                'Message du responsable du marché',
+                $data['message'].$suffixe,
+                $order,
+                ['order_id' => $order?->id, 'report_id' => $report->id]
+            );
+
+            if ($vendors->isNotEmpty()) {
+                $report->update(['vendor_notified_at' => now()]);
+            }
+        }
+
+        return response()->json([
+            'message' => 'Message envoyé au client et/ou au vendeur.',
+            'report'  => $report->fresh(['user:id,name', 'store:id,name']),
+        ]);
+    }
+
+    /**
+     * Marquer un signalement comme traité (avec une réponse facultative).
      */
     public function resolveReport(Request $request, Report $report)
     {
         $admin = $this->admin($request);
 
-        $report->update([
-            'status'     => 'traite',
-            'handled_by' => $admin->id,
-            'handled_at' => now(),
+        $data = $request->validate([
+            'message' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        return response()->json(['report' => $report->fresh(['user:id,name', 'store:id,name'])]);
+        $message = trim((string) ($data['message'] ?? ''));
+        $order   = $report->order;
+        $suffixe = $order ? " (Commande {$order->reference})" : '';
+
+        $report->update([
+            'status'      => 'traite',
+            'handled_by'  => $admin->id,
+            'handled_at'  => now(),
+            'admin_reply' => $message !== '' ? $message : $report->admin_reply,
+        ]);
+
+        $texteClient = $message !== ''
+            ? $message.$suffixe
+            : "Le responsable du marché a traité votre signalement{$suffixe}.";
+
+        $this->notifier->to(
+            $report->user,
+            'report_resolved',
+            'Votre signalement a été traité ✅',
+            $texteClient,
+            $order,
+            ['order_id' => $order?->id, 'report_id' => $report->id]
+        );
+
+        if ($message !== '') {
+            $vendors = $this->vendorsOfReport($report);
+
+            $this->notifier->toMany(
+                $vendors,
+                'report_resolved',
+                'Signalement résolu',
+                $message.$suffixe,
+                $order,
+                ['order_id' => $order?->id, 'report_id' => $report->id]
+            );
+
+            if ($vendors->isNotEmpty()) {
+                $report->update(['vendor_notified_at' => now()]);
+            }
+        }
+
+        return response()->json([
+            'message' => 'Signalement traité.',
+            'report'  => $report->fresh(['user:id,name', 'store:id,name']),
+        ]);
+    }
+
+    /** Les vendeurs concernés par un signalement. */
+    private function vendorsOfReport(Report $report)
+    {
+        if ($report->order_id) {
+            $ids = $report->order
+                ->items()
+                ->with('store:id,user_id')
+                ->get()
+                ->pluck('store.user_id')
+                ->filter()
+                ->unique();
+
+            return User::whereIn('id', $ids)->get();
+        }
+
+        if ($report->store_id && $report->store?->user_id) {
+            return User::whereKey($report->store->user_id)->get();
+        }
+
+        return User::whereRaw('1 = 0')->get();
     }
 
     // ---------------------------------------------------------------- helpers

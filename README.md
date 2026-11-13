@@ -1,58 +1,119 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Marketplace Mali
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Marché multi-vendeurs de Bamako : site web accessible depuis n'importe quel
+téléphone, API Laravel, abonnements vendeurs payés par Orange Money.
 
-## About Laravel
+**En ligne :** https://marketplace-mali.onrender.com/marche.html
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Rôles
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Rôle | Accès | Création du compte |
+| --- | --- | --- |
+| Client | Marché, panier, commandes, signalements | Inscription libre |
+| Vendeur | Espace boutique (commandes, produits, abonnement) | Par le responsable uniquement |
+| Livreur | Espace livraisons | Par le responsable uniquement |
+| Responsable | Panneau de contrôle complet | Compte privé |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Chaque rôle est redirigé vers son interface et ne peut pas en sortir.
+L'abonnement vendeur est de **10 000 FCFA / 30 jours**, payé par Orange Money
+sur le compte du responsable, qui active ou désactive le compte.
 
-## Learning Laravel
+## Fonctionnalités
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- Catalogue avec photos multiples, variantes couleur/taille et galerie.
+- Panier et commande : adresse, téléphone, paiement Orange Money (le client
+  déclare l'ID de transaction, le vendeur confirme).
+- Circuit complet : `en_attente` → `confirmee` → `en_livraison` → `livree`
+  (ou `annulee`, avec restitution automatique du stock).
+- Notifications **application + e-mail + SMS** : nouvelle commande, paiement,
+  confirmation, livraison, annulation, signalements.
+- **Signalement client → responsable** : le client écrit depuis sa commande,
+  le responsable reçoit tout de suite (app + e-mail + SMS) et le vendeur
+  concerné reçoit un SMS d'alerte. Le responsable peut répondre au client
+  et/ou au vendeur, annuler la commande, bloquer le vendeur ou marquer le
+  dossier traité. La réponse s'affiche chez le client et le vendeur.
+- Compte personnel : nom, e-mail, téléphone, changement de mot de passe,
+  alertes, installation de l'application (PWA).
+- Responsable : statistiques, recherche et filtre par rôle, réinitialisation
+  de mot de passe, blocage/déblocage, visibilité des produits.
+- PWA installable (manifest + service worker), photos stockées en base.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Comptes de démonstration
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+| Rôle | E-mail | Mot de passe |
+| --- | --- | --- |
+| Client | `client@demo.mali` | `password123` |
+| Vendeuse (Boutique Sabali) | `fatou@demo.mali` | `password123` |
+| Vendeur (Wax & Pagne) | `moussa@demo.mali` | `password123` |
+| Responsable | privé | privé |
 
-## Agentic Development
+> Les comptes client/vendeurs sont des comptes de **test** : changez leur mot
+> de passe ou supprimez-les avant d'ouvrir le marché au public.
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Développement local
+
+Prérequis : PHP 8.4+, Composer, MySQL (XAMPP) ou PostgreSQL.
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate --seed
+php artisan serve        # http://127.0.0.1:8000/marche.html
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Base locale MySQL : `marketplace_mali`, utilisateur `marketplace` /
+`mali2026`. Les données de démonstration sont dans
+`database/seeders/marketplace-data.json` (import unique :
+`php artisan marketplace:import --if-empty`).
 
-## Contributing
+## Déploiement
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Le dépôt est prêt pour **Render** (Docker, plan gratuit) + **Neon**
+(PostgreSQL gratuit) :
 
-## Code of Conduct
+1. Créer un projet Neon et copier la chaîne
+   `postgresql://…?sslmode=require`.
+2. Sur Render : *New → Blueprint*, choisir ce dépôt, renseigner `DB_URL`.
+3. Le conteneur applique les migrations et importe les données au premier
+   démarrage (`docker/entrypoint.sh`).
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Variables d'environnement principales :
 
-## Security Vulnerabilities
+```text
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://marketplace-mali.onrender.com
+DB_CONNECTION=pgsql
+DB_URL=postgresql://…?sslmode=require
+MAIL_MAILER=smtp        # log par défaut
+SMS_DRIVER=log          # orange si contrat Orange SMS API
+ORANGE_SMS_CLIENT_ID=
+ORANGE_SMS_CLIENT_SECRET=
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+> Render gratuit : le service s'endort après 15 min sans visite, la première
+> ouverture suivante prend ~50 s. Les données restent dans Neon.
 
-## License
+## Sécurité
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Limitation de débit (connexion, inscription, commandes, photos), jetons
+Sanctum expirant après 30 jours, CSP stricte, `X-Frame-Options: DENY`,
+HSTS, `nosniff`, `APP_DEBUG=false`, versions PHP/Apache masquées, uploads
+limités aux images JPG/PNG/WEBP (4 Mo), vérification du rôle et de la
+propriété des données à chaque requête, journalisation des échecs de
+connexion (sans mots de passe).
+
+## Structure
+
+```text
+app/Http/Controllers/Api/   API (auth, produits, commandes, vendeur, livreur, admin)
+app/Models/                 User, Store, Product, Order, Report, Notification, Media…
+app/Services/               Notifier (app/e-mail/SMS), Sms, Orange Money
+public/marche.html          Application web complète (une seule page)
+public/sw.js                Service worker PWA
+database/migrations/        Schéma de la base
+database/seeders/           Données du marché (JSON)
+docker/                     Configuration Apache/PHP de production
+routes/api.php              Toutes les routes de l'API
+```

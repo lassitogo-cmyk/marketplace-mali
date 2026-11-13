@@ -11,14 +11,19 @@ class Report extends Model
         'order_id',
         'store_id',
         'message',
+        'admin_reply',
         'status',
         'handled_by',
         'handled_at',
+        'vendor_notified_at',
     ];
 
     protected function casts(): array
     {
-        return ['handled_at' => 'datetime'];
+        return [
+            'handled_at'         => 'datetime',
+            'vendor_notified_at' => 'datetime',
+        ];
     }
 
     public function user()

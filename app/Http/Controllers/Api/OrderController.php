@@ -182,6 +182,49 @@ class OrderController extends Controller
         ]);
     }
 
+    /**
+     * Le client annule sa commande tant qu'elle n'est pas confirmée.
+     */
+    public function cancel(Request $request, Order $order)
+    {
+        $user = $request->user();
+
+        if ($order->user_id !== $user->id) {
+            abort(403, 'Cette commande ne vous appartient pas.');
+        }
+
+        abort_unless(
+            $order->status === 'en_attente',
+            422,
+            'Cette commande ne peut plus être annulée : le vendeur l\'a déjà confirmée.'
+        );
+
+        $order->update(['status' => 'annulee']);
+        $order->restoreStock();
+
+        $this->notifier->toMany(
+            $this->vendorsOf($order),
+            'order_cancelled',
+            'Commande annulée par le client',
+            "Le client {$user->name} a annulé la commande {$order->reference}. Le stock a été remis à jour.",
+            $order,
+            ['order_id' => $order->id]
+        );
+
+        $this->notifier->toMany(
+            $this->notifier->admins(),
+            'order_cancelled',
+            'Commande annulée',
+            "La commande {$order->reference} a été annulée par le client {$user->name}.",
+            $order
+        );
+
+        return response()->json([
+            'message' => 'Commande annulée.',
+            'order'   => $order->fresh(['items']),
+        ]);
+    }
+
     /** Les vendeurs concernés par la commande. */
     protected function vendorsOf(Order $order)
     {
@@ -205,7 +248,11 @@ class OrderController extends Controller
             abort(403, 'Cette commande ne vous appartient pas.');
         }
 
-        return response()->json($order->load(['items.store:id,name,phone']));
+        return response()->json($order->load([
+            'items.store:id,name,phone',
+            'courier:id,name,phone',
+            'reports' => fn ($q) => $q->where('user_id', $request->user()->id)->latest(),
+        ]));
     }
 
     /**
@@ -234,8 +281,37 @@ class OrderController extends Controller
             'status'   => 'nouveau',
         ]);
 
+        $store   = $storeId ? \App\Models\Store::find($storeId) : null;
+        $boutique = $store?->name ?? 'la boutique';
+        $resume  = "Client : {$user->name}. Commande : {$order->reference}. Boutique : {$boutique}. Message : {$data['message']}";
+
+        // Le responsable du marché est prévenu immédiatement (app + e-mail + SMS).
+        $this->notifier->toMany(
+            $this->notifier->admins(),
+            'report_created',
+            '🚨 Nouveau problème signalé',
+            $resume,
+            $order,
+            ['order_id' => $order->id, 'report_id' => $report->id]
+        );
+
+        // Le vendeur concerné reçoit aussi l'alerte (SMS compris).
+        $vendors = $this->vendorsOf($order);
+        $this->notifier->toMany(
+            $vendors,
+            'report_vendor_alert',
+            'Problème signalé sur une commande ⚠️',
+            "Le client {$user->name} a signalé un problème sur la commande {$order->reference}. Motif : {$data['message']}. Le responsable du marché vous contactera.",
+            $order,
+            ['order_id' => $order->id, 'report_id' => $report->id]
+        );
+
+        if ($vendors->isNotEmpty()) {
+            $report->update(['vendor_notified_at' => now()]);
+        }
+
         return response()->json([
-            'message' => 'Signalement envoyé au responsable du marché.',
+            'message' => 'Signalement envoyé au responsable du marché. Le vendeur est prévenu.',
             'report'  => $report,
         ], 201);
     }

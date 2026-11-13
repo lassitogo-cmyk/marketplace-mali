@@ -497,7 +497,7 @@ async function api(path, opts = {}){
   try{
     res = await fetch(API + path, Object.assign({}, opts, {headers, body}));
   }catch(e){
-    throw new Error('Connexion au serveur impossible. Vérifiez que le Mac est allumé et sur le même Wi-Fi.');
+    throw new Error('Connexion au serveur impossible. Vérifiez votre connexion internet puis réessayez.');
   }
   if (res.status === 401){
     doLogout(false); location.hash = '#/login';
@@ -597,15 +597,18 @@ function renderTabs(){
   ] : courier ? [
     {href:'#/courier', i:'🛵', l:'Livraisons', on: h.startsWith('#/courier')},
     {href:'#/notifications', i:'🔔', l:'Alertes', on: h.startsWith('#/notifications')},
+    {href:'#/account', i:'👤', l:'Compte', on: h.startsWith('#/account')},
   ] : vendor ? [
     {href:'#/vendor', i:'📥', l:'Commandes', on: h === '#/vendor' || h === '#/vendor/'},
     {href:'#/vendor/products', i:'🏷️', l:'Produits', on: h.startsWith('#/vendor/products')},
     {href:'#/vendor/store', i:'🏪', l:'Boutique', on: h.startsWith('#/vendor/store')},
     {href:'#/vendor/abonnement', i:'💳', l:'Abonnement', on: h.startsWith('#/vendor/abonnement')},
+    {href:'#/account', i:'👤', l:'Compte', on: h.startsWith('#/account')},
   ] : [
     {href:'#/home', i:'🏠', l:'Accueil', on: h.startsWith('#/home') || h.startsWith('#/product') || h === ''},
     {href:'#/cart', i:'🛒', l:'Panier', on: h.startsWith('#/cart')},
     {href:'#/orders', i:'📦', l:'Commandes', on: h.startsWith('#/order')},
+    {href:'#/account', i:'👤', l:'Compte', on: h.startsWith('#/account')},
   ];
   $('#tabs').innerHTML = tabs.map(t =>
     '<button class="'+(t.on?'on':'')+'" onclick="location.hash=\''+t.href+'\'">'+
@@ -643,7 +646,7 @@ function router(){
   if (vendor && clientViews.includes(parts[0])){
     location.hash = '#/vendor'; return;      // le vendeur reste dans sa boutique
   }
-  if (courier && parts[0] !== 'courier'){
+  if (courier && parts[0] !== 'courier' && parts[0] !== 'account'){
     location.hash = '#/courier'; return;     // le livreur reste dans ses livraisons
   }
   if (!courier && parts[0] === 'courier'){
@@ -657,6 +660,7 @@ function router(){
 
   if (parts[0] === 'login')        return viewLogin();
   if (parts[0] === 'register')    return viewRegister();
+  if (parts[0] === 'account')     return viewAccount();
   if (parts[0] === 'product')     return viewProduct(parts[1]);
   if (parts[0] === 'store')       return viewStore(parts[1]);
   if (parts[0] === 'cart')        return viewCart();
@@ -1078,16 +1082,40 @@ async function viewOrder(id){
       '<h3>Livraison</h3>' +
       '<div style="font-size:14px; line-height:1.6">📍 '+esc(o.address)+'<br>📞 '+esc(o.phone) +
       (o.note ? '<br>📝 '+esc(o.note) : '') + '</div>' +
+      (o.courier ? '<div style="margin-top:6px">🛵 Livreur : <b>'+esc(o.courier.name)+'</b>' +
+        (o.courier.phone ? ' · 📞 '+esc(o.courier.phone) : '') + '</div>' : '') +
+      (o.status === 'en_attente'
+        ? '<button class="btn red" style="margin-top:10px" onclick="app.cancelOrder('+o.id+')">🛑 Annuler ma commande</button>'
+        : '') +
     '</div>' +
     payBlock(o) +
+    clientReportsHTML(o.reports) +
     '<div class="card">' +
       '<b>Un problème avec cette commande ?</b>' +
       '<div class="muted" style="margin:4px 0 8px">Produit non conforme, vendeur injoignable, livraison… ' +
-        'Le responsable du marché reçoit votre signalement et peut intervenir.</div>' +
+        'Votre message part directement au responsable du marché, et le vendeur reçoit un SMS d\'alerte. ' +
+        'Le responsable peut annuler la commande et intervenir entre vous et le vendeur.</div>' +
       '<input id="r-msg" placeholder="Expliquez le problème (5 caractères min.)">' +
       '<div class="err" id="r-err" style="display:none"></div>' +
-      '<button class="btn ghost" onclick="app.reportOrder('+o.id+')">🚨 Signaler un problème</button>' +
+      '<button class="btn ghost" onclick="app.reportOrder('+o.id+')">🚨 Envoyer au responsable du marché</button>' +
     '</div>';
+}
+
+function clientReportsHTML(reports){
+  if (!reports || !reports.length) return '';
+  return '<div class="card" style="border:1.5px solid #FDBA74">' +
+    '<b>🚨 Mes signalements</b>' +
+    reports.map(r =>
+      '<div style="margin-top:10px">' +
+        '<div class="muted">'+ddate(r.created_at)+' · ' +
+          (r.status === 'traite' ? '✅ Traité' : '⏳ En cours de traitement') + '</div>' +
+        '<div class="demo" style="margin-top:4px">'+esc(r.message)+'</div>' +
+        (r.admin_reply
+          ? '<div style="margin-top:6px;background:#DCFCE7;padding:8px;border-radius:10px">' +
+              '<b>Réponse du responsable :</b><br>'+esc(r.admin_reply)+'</div>'
+          : '<div class="muted" style="margin-top:4px">Le responsable du marché va vous répondre.</div>') +
+      '</div>').join('') +
+  '</div>';
 }
 
 app.reportOrder = async id => {
@@ -1096,9 +1124,18 @@ app.reportOrder = async id => {
   if (msg.length < 5){ err.textContent = 'Décrivez le problème en quelques mots.'; err.style.display = 'block'; return; }
   try{
     await api('orders/' + id + '/report', {method:'POST', body:{message: msg}});
-    toast('✓ Signalement envoyé au responsable du marché.');
+    toast('✓ Message envoyé au responsable. Le vendeur est prévenu par SMS.');
     viewOrder(id);
   }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+app.cancelOrder = async id => {
+  if (!confirm('Annuler cette commande ? Les produits retourneront dans le stock du vendeur.')) return;
+  try{
+    await api('orders/' + id + '/cancel', {method:'POST'});
+    toast('✓ Commande annulée. Le vendeur est prévenu.');
+    viewOrder(id);
+  }catch(e){ toast(e.message); }
 };
 
 /* ---------- notifications ---------- */
@@ -1107,6 +1144,7 @@ const NOTIF_ICONS = {
   order_created:'📥', order_confirmed:'✅', payment_declared:'💰', payment_confirmed:'💳',
   delivery_request:'🛵', order_shipped:'🛵', order_delivered:'📦', order_cancelled:'🛑',
   order_en_livraison:'🛵', order_livree:'✅', order_annulee:'🛑', account:'👤',
+  report_created:'🚨', report_vendor_alert:'⚠️', report_reply:'💬', report_resolved:'✅',
 };
 
 async function viewNotifications(){
@@ -1118,7 +1156,7 @@ async function viewNotifications(){
 
   const list = (d.data || []).map(n => {
     const unread = !n.read_at;
-    return '<div class="card" style="'+(unread ? 'border-left:4px solid var(--green)' : '')+'" onclick="app.openNotif('+n.id+','+(n.order_id || 0)+')">' +
+    return '<div class="card" style="'+(unread ? 'border-left:4px solid var(--green)' : '')+'" onclick="app.openNotif('+n.id+','+(n.order_id || 0)+',\''+esc(n.type)+'\')">' +
       '<div class="iline"><b>'+(NOTIF_ICONS[n.type] || '🔔')+' '+esc(n.title)+'</b>' +
         (unread ? '<span class="pill" style="color:#0E7C3A;background:#DCFCE7">nouveau</span>' : '') + '</div>' +
       (n.body ? '<div class="muted" style="margin-top:4px">'+esc(n.body)+'</div>' : '') +
@@ -1135,11 +1173,12 @@ async function viewNotifications(){
     (list || '<div class="card empty">Aucune notification pour l\'instant.</div>');
 }
 
-app.openNotif = async (id, orderId) => {
+app.openNotif = async (id, orderId, type) => {
   try{ await api('notifications/' + id + '/read', {method:'POST'}); }catch(e){}
   refreshNotifs(false);
-  if (!orderId) return viewNotifications();
-  if (user.role === 'admin')   return location.hash = '#/admin/commandes';
+  const report = type && type.indexOf('report_') === 0;
+  if (!orderId && !report) return viewNotifications();
+  if (user.role === 'admin')   return location.hash = report ? '#/admin/signalements' : '#/admin/commandes';
   if (user.role === 'vendeur') return location.hash = '#/vendor';
   if (user.role === 'livreur') return location.hash = '#/courier';
   location.hash = '#/order/' + orderId;
@@ -1374,6 +1413,17 @@ async function vendorOrders(){
         ? '<div class="muted">💰 ID transaction : <b>'+esc(o.payment_ref)+'</b></div>' : '') +
       '<div class="muted">👤 '+esc(o.user && o.user.name || 'Client')+
         (o.user && o.user.phone ? ' · '+esc(o.user.phone) : '')+' · '+ddate(o.created_at)+'</div>' +
+      (o.courier ? '<div class="muted">🛵 Livreur : '+esc(o.courier.name)+
+        (o.courier.phone ? ' · 📞 '+esc(o.courier.phone) : '')+'</div>' : '') +
+      ((o.reports || []).length
+        ? o.reports.map(r => '<div class="demo" style="margin-top:8px;border-left:3px solid #B91C1C">' +
+            '<b>🚨 Problème signalé</b> <span class="muted">'+ddate(r.created_at)+'</span><br>'+esc(r.message) +
+            (r.admin_reply
+              ? '<div style="margin-top:6px;background:#DCFCE7;padding:8px;border-radius:10px">' +
+                  '<b>Message du responsable :</b><br>'+esc(r.admin_reply)+'</div>'
+              : '') +
+          '</div>').join('')
+        : '') +
       '<div class="sep"></div>' +
       mine.map(it => '<div class="iline"><span>'+esc(it.product_name)+(it.variant ? ' <span class="muted">· '+esc(it.variant)+'</span>' : '')+' ×'+it.qty+'</span><b>'+fcfa(it.subtotal)+'</b></div>').join('') +
       '<div class="iline" style="border:0"><b>Ma part</b><b style="color:var(--green)">'+fcfa(part)+'</b></div>' +
@@ -1905,7 +1955,7 @@ function rolePill(r){
   return '<span class="pill" style="color:'+s.color+';background:'+s.bg+'">'+s.label+'</span>';
 }
 
-const adminList = { items:[], page:1, last:1, search:'' };
+const adminList = { items:[], page:1, last:1, search:'', role:'tous' };
 
 async function viewAdmin(parts){
   if (!user || user.role !== 'admin'){ return location.hash = '#/home'; }
@@ -1925,7 +1975,7 @@ async function adminUsers(){
   let stats, data;
   try{
     stats = await api('admin/stats');
-    data  = await api('admin/users?page=1');
+    data  = await api('admin/users?page=1&role=' + adminList.role);
   }catch(e){
     $('#app').innerHTML = '<h2>👥 Personnes du marché</h2>' +
       '<div class="card err" style="display:block">'+esc(e.message)+'</div>';
@@ -1955,6 +2005,10 @@ async function adminUsers(){
       : '') +
     '<div class="search"><input id="a-q" type="search" placeholder="🔍 Rechercher (nom, e-mail, téléphone)…"' +
     ' value="'+esc(adminList.search)+'" oninput="app.searchUsers(this.value)"></div>' +
+    '<div class="seg" style="background:#fff; border:1.5px solid var(--line)">' +
+      [['tous','Tous'],['client','Clients'],['vendeur','Vendeurs'],['livreur','Livreurs'],['admin','Responsables']]
+        .map(([k,l]) => '<button class="'+(adminList.role===k?'on':'')+'" onclick="app.userFilter(\''+k+'\')">'+l+'</button>').join('') +
+    '</div>' +
     '<div id="a-list"></div>' +
     '<button class="btn ghost" id="a-more" style="display:none" onclick="app.moreUsers()">Charger plus</button>';
   renderUserList();
@@ -1991,6 +2045,7 @@ function renderUserList(){
           : '<button class="btn small ghost" onclick="app.setRole('+u.id+',\'vendeur\')">→ Devenir vendeur</button>' +
             '<button class="btn small red" onclick="app.delUser('+u.id+')">🗑 Supprimer</button>'
         ) +
+        '<button class="btn small ghost" onclick="app.resetUserPassword('+u.id+')">🔑 Mot de passe</button>' +
         '<button class="btn small red" onclick="app.blockUser('+u.id+')">⛔ Bloquer</button>';
       }
     }
@@ -2017,7 +2072,7 @@ app.searchUsers = s => {
   app._at = setTimeout(async () => {
     adminList.search = s.trim(); adminList.page = 1;
     try{
-      const params = new URLSearchParams({page: 1});
+      const params = new URLSearchParams({page: 1, role: adminList.role});
       if (adminList.search) params.set('search', adminList.search);
       const data = await api('admin/users?' + params.toString());
       adminList.items = data.data || []; adminList.last = data.last_page || 1;
@@ -2026,14 +2081,30 @@ app.searchUsers = s => {
   }, 350);
 };
 
+app.userFilter = role => {
+  adminList.role = role; adminList.page = 1;
+  adminUsers();
+};
+
 app.moreUsers = async () => {
   try{
     adminList.page++;
-    const params = new URLSearchParams({page: adminList.page});
+    const params = new URLSearchParams({page: adminList.page, role: adminList.role});
     if (adminList.search) params.set('search', adminList.search);
     const data = await api('admin/users?' + params.toString());
     adminList.items = adminList.items.concat(data.data || []);
     renderUserList();
+  }catch(e){ toast(e.message); }
+};
+
+app.resetUserPassword = async id => {
+  const pass = prompt('Nouveau mot de passe pour cette personne (8 caractères min.) :');
+  if (pass === null) return;
+  if (pass.length < 8) return toast('Le mot de passe doit faire au moins 8 caractères.');
+  if (!confirm('Réinitialiser le mot de passe ? La personne devra se reconnecter partout.')) return;
+  try{
+    await api('admin/users/' + id + '/password', {method:'PUT', body:{password: pass}});
+    toast('✓ Mot de passe réinitialisé. Communiquez-le à la personne.');
   }catch(e){ toast(e.message); }
 };
 
@@ -2062,7 +2133,8 @@ app.blockUser = async id => {
   try{
     await api('admin/users/' + id + '/block', {method:'POST', body:{reason: reason.trim() || null}});
     toast('⛔ Compte bloqué — accès coupé immédiatement.');
-    adminUsers();
+    if ((location.hash || '').startsWith('#/admin/signalements')) adminReports();
+    else adminUsers();
   }catch(e){ toast(e.message); }
 };
 
@@ -2128,13 +2200,22 @@ function renderAdminOrders(){
       acts = (o.payment_status === 'declare'
                 ? '<button class="btn small" onclick="app.adminConfirmPay('+o.id+')">💰 Confirmer le paiement</button>'
                 : '') +
+             '<button class="btn small ghost" onclick="app.adminOrderStatus('+o.id+',\'en_livraison\')">🛵 En livraison</button>' +
              '<button class="btn small ghost" onclick="app.adminOrderStatus('+o.id+',\'livree\')">📦 Marquer livrée</button>' +
+             '<button class="btn small red" onclick="app.adminOrderStatus('+o.id+',\'annulee\')">🛑 Annuler</button>';
+    } else if (o.status === 'en_livraison'){
+      acts = '<button class="btn small ghost" onclick="app.adminOrderStatus('+o.id+',\'livree\')">📦 Marquer livrée</button>' +
              '<button class="btn small red" onclick="app.adminOrderStatus('+o.id+',\'annulee\')">🛑 Annuler</button>';
     }
     return '<div class="card">' +
       '<div class="iline"><b>'+esc(o.reference)+'</b><span>'+pill(o.status)+' '+payPill(o.payment_status)+'</span></div>' +
       (o.payment_ref ? '<div class="muted">💰 ID transaction : <b>'+esc(o.payment_ref)+'</b></div>' : '') +
       '<div class="muted">👤 '+esc(u.name || 'Client')+(u.phone ? ' · 📞 '+esc(u.phone) : '')+'</div>' +
+      (o.courier ? '<div class="muted">🛵 Livreur : '+esc(o.courier.name)+
+        (o.courier.phone ? ' · 📞 '+esc(o.courier.phone) : '')+'</div>' : '') +
+      ((o.reports || []).length
+        ? '<div class="muted" style="color:var(--red)">🚨 '+o.reports.length+' signalement(s) — voir « Problèmes »</div>'
+        : '') +
       '<div class="muted">'+ddate(o.created_at)+' · '+fcfa(o.total)+'</div>' +
       (vendors.length ? '<div class="muted">🏪 '+esc(vendors.join(', '))+'</div>' : '') +
       '<div style="margin-top:6px">' + (o.items || []).map(it =>
@@ -2182,7 +2263,8 @@ app.adminOrderStatus = async (id, status) => {
   try{
     await api('admin/orders/' + id + '/status', {method:'PUT', body:{status}});
     toast('✓ Commande mise à jour.');
-    adminOrders();
+    if ((location.hash || '').startsWith('#/admin/signalements')) adminReports();
+    else adminOrders();
   }catch(e){ toast(e.message); }
 };
 
@@ -2318,10 +2400,14 @@ function renderAdminReports(){
     const u = r.user || {}, s = r.store || {}, v = s.user || {};
     let acts = '';
     if (r.status === 'nouveau'){
+      acts += '<button class="btn small" onclick="app.replyReport('+r.id+',\'tous\')">📩 Envoyer au client + vendeur</button>' +
+              '<button class="btn small ghost" onclick="app.replyReport('+r.id+',\'vendeur\')">🏪 Vendeur (SMS)</button>';
       if (v.id) acts += '<button class="btn small red" onclick="app.blockUser('+v.id+')">⛔ Bloquer le vendeur</button>';
       if (r.order && r.order.status !== 'annulee')
         acts += '<button class="btn small gray" onclick="app.adminOrderStatus('+r.order.id+',\'annulee\')">🛑 Annuler la commande</button>';
       acts += '<button class="btn small ghost" onclick="app.resolveReport('+r.id+')">✅ Marquer traité</button>';
+    } else {
+      acts += '<button class="btn small ghost" onclick="app.replyReport('+r.id+',\'tous\')">📩 Renvoyer une réponse</button>';
     }
     return '<div class="card">' +
       '<div class="iline"><b>🚨 '+esc(u.name || 'Client')+'</b>' +
@@ -2329,12 +2415,20 @@ function renderAdminReports(){
           ? '<span class="pill" style="color:#B91C1C;background:#FEE2E2">À traiter</span>'
           : '<span class="pill" style="color:#15803D;background:#DCFCE7">Traité</span>') +
       '</div>' +
-      '<div class="muted">🏪 '+esc(s.name || 'Boutique inconnue')+(v.name ? ' · vendeur : '+esc(v.name) : '')+'</div>' +
+      '<div class="muted">🏪 '+esc(s.name || 'Boutique inconnue')+(v.name ? ' · vendeur : '+esc(v.name) : '')+
+        (v.phone ? ' · 📞 '+esc(v.phone) : '')+'</div>' +
       (v.blocked_at ? '<div class="muted" style="color:var(--red)">⛔ Vendeur bloqué</div>' : '') +
       (r.order ? '<div class="muted">📦 '+esc(r.order.reference)+' · '+fcfa(r.order.total)+' · '+pill(r.order.status)+'</div>' : '') +
       '<div class="demo" style="margin-top:8px">'+esc(r.message)+'</div>' +
-      '<div class="muted" style="margin-top:6px">Signalé le '+ddate(r.created_at)+'</div>' +
-      (acts ? '<div style="margin-top:8px">'+acts+'</div>' : '') +
+      '<div class="muted" style="margin-top:6px">Signalé le '+ddate(r.created_at)+
+        (r.vendor_notified_at ? ' · 📱 vendeur prévenu le '+ddate(r.vendor_notified_at) : '')+'</div>' +
+      (r.admin_reply
+        ? '<div style="margin-top:6px;background:#DCFCE7;padding:8px;border-radius:10px">' +
+            '<b>Votre réponse :</b><br>'+esc(r.admin_reply)+'</div>'
+        : '') +
+      '<textarea id="rep-msg-'+r.id+'" placeholder="Votre message au client et au vendeur…" style="margin-top:8px">' +
+        esc(r.admin_reply || '') + '</textarea>' +
+      '<div style="margin-top:8px">'+acts+'</div>' +
     '</div>';
   }).join('');
   $('#r-list').innerHTML = list || '<div class="card empty">Aucun signalement. 👍</div>';
@@ -2354,10 +2448,28 @@ app.moreReports = async () => {
   }catch(e){ toast(e.message); }
 };
 
-app.resolveReport = async id => {
+app.replyReport = async (id, to) => {
+  const el = document.getElementById('rep-msg-' + id);
+  const message = (el ? el.value : '').trim();
+  if (message.length < 2) return toast('Écrivez votre message avant de l\'envoyer.');
   try{
-    await api('admin/reports/' + id + '/resolve', {method:'PUT', body:{}});
-    toast('✓ Signalement marqué comme traité.');
+    await api('admin/reports/' + id + '/reply', {method:'POST', body:{
+      message, send_to: to || 'tous'}});
+    toast(to === 'vendeur'
+      ? '✓ Vendeur prévenu par SMS et dans l\'application.'
+      : '✓ Message envoyé au client et au vendeur.');
+    adminReports();
+  }catch(e){ toast(e.message); }
+};
+
+app.resolveReport = async id => {
+  const el = document.getElementById('rep-msg-' + id);
+  const message = (el ? el.value : '').trim();
+  if (!confirm('Marquer ce signalement comme traité ?' + (message ? ' Votre message sera envoyé au client et au vendeur.' : ''))) return;
+  try{
+    await api('admin/reports/' + id + '/resolve', {method:'PUT', body:{
+      message: message || null}});
+    toast('✓ Signalement traité. Le client est informé.');
     adminReports();
   }catch(e){ toast(e.message); }
 };
@@ -2733,7 +2845,111 @@ app.saveProfile = async () => {
   }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
 };
 
+/* ---------- mon compte (client, vendeur, livreur) ---------- */
+
+const ROLE_LABEL = {client:'Client', vendeur:'Vendeur', livreur:'Livreur', admin:'Responsable du marché'};
+
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+window.addEventListener('appinstalled', () => {
+  toast('✓ Marketplace Mali installée sur cet appareil.');
+});
+
+async function viewAccount(){
+  if (!user) return location.hash = '#/login';
+
+  $('#app').innerHTML =
+    '<h2>👤 Mon compte</h2>' +
+    '<div class="muted" style="margin:-6px 0 12px">' +
+      (ROLE_LABEL[user.role] || 'Compte') + ' · votre adresse e-mail est votre identifiant de connexion.</div>' +
+    '<div class="card">' +
+      '<label>Nom complet *</label><input id="ac-name" value="'+esc(user.name || '')+'" placeholder="Votre nom">' +
+      '<label>Adresse e-mail *</label>' +
+      '<input id="ac-mail" type="email" value="'+esc(user.email || '')+'" autocapitalize="off">' +
+      '<label>Téléphone (pour les SMS)</label>' +
+      '<input id="ac-tel" type="tel" value="'+esc(user.phone || '')+'" placeholder="76 00 00 00">' +
+      '<div class="err" id="ac-err" style="display:none"></div>' +
+      '<button class="btn" onclick="app.saveAccount()">✅ Enregistrer mes informations</button>' +
+    '</div>' +
+    '<div class="card">' +
+      '<b>🔑 Changer mon mot de passe</b>' +
+      '<label>Mot de passe actuel *</label><input id="ac-old" type="password" autocomplete="current-password">' +
+      '<label>Nouveau mot de passe * (8 caractères min.)</label><input id="ac-new" type="password" autocomplete="new-password">' +
+      '<label>Confirmer le nouveau mot de passe *</label><input id="ac-new2" type="password" autocomplete="new-password">' +
+      '<div class="err" id="ac-perr" style="display:none"></div>' +
+      '<button class="btn ghost" onclick="app.changePassword()">🔐 Changer le mot de passe</button>' +
+    '</div>' +
+    '<div class="card">' +
+      '<b>📱 Installer l\'application</b>' +
+      '<div class="muted" style="margin:4px 0 8px">Ajoutez Marketplace Mali à votre écran d\'accueil : ' +
+        'accès direct, plein écran, comme une vraie application.</div>' +
+      '<button class="btn ghost" onclick="app.installPWA()">📲 Installer sur mon téléphone</button>' +
+      '<div class="muted" style="margin-top:6px">Sur iPhone : bouton Partager → « Sur l\'écran d\'accueil ». ' +
+        'Sur Android : menu ⋮ → « Installer l\'application ».</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<b>🔔 Alertes sur cet appareil</b>' +
+      '<div class="muted" style="margin:4px 0 8px">Recevez les nouvelles commandes, livraisons et messages du responsable.</div>' +
+      '<button class="btn ghost" onclick="app.enablePush()">Activer les alertes</button>' +
+      '<button class="btn gray" onclick="app.go(\'#/notifications\')">Voir mes notifications</button>' +
+    '</div>';
+}
+
+app.saveAccount = async () => {
+  const err = $('#ac-err'); err.style.display = 'none';
+  const name = $('#ac-name').value.trim(),
+        mail = $('#ac-mail').value.trim(),
+        tel  = $('#ac-tel').value.trim();
+  if (name.length < 2){ err.textContent = 'Indiquez votre nom complet.'; err.style.display='block'; return; }
+  if (!mail.includes('@')){ err.textContent = 'L\'adresse e-mail semble incorrecte.'; err.style.display='block'; return; }
+  try{
+    const r = await api('me', {method:'PUT', body:{name, email:mail, phone: tel || null}});
+    user = r.user;
+    localStorage.setItem('mm_user', JSON.stringify(user));
+    toast('✓ Vos informations sont enregistrées.');
+    router();
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+app.changePassword = async () => {
+  const err = $('#ac-perr'); err.style.display = 'none';
+  const old = $('#ac-old').value,
+        nw  = $('#ac-new').value,
+        nw2 = $('#ac-new2').value;
+  if (!old){ err.textContent = 'Indiquez votre mot de passe actuel.'; err.style.display='block'; return; }
+  if (nw.length < 8){ err.textContent = 'Le nouveau mot de passe doit faire au moins 8 caractères.'; err.style.display='block'; return; }
+  if (nw !== nw2){ err.textContent = 'Les deux mots de passe ne correspondent pas.'; err.style.display='block'; return; }
+  try{
+    await api('me/password', {method:'PUT', body:{
+      current_password: old, password: nw, password_confirmation: nw2}});
+    toast('✓ Mot de passe changé. Vos autres appareils sont déconnectés.');
+    viewAccount();
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
+};
+
+app.installPWA = async () => {
+  if (deferredPrompt){
+    try{
+      deferredPrompt.prompt();
+      const choix = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      toast(choix && choix.outcome === 'accepted' ? '✓ Installation lancée.' : 'Installation annulée.');
+      return;
+    }catch(e){}
+  }
+  toast('Menu du navigateur : Partager → « Sur l\'écran d\'accueil » (iPhone) ou ⋮ → « Installer » (Android).');
+};
+
 /* ---------- démarrage ---------- */
+
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 
 window.addEventListener('hashchange', router);
 router();

@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -128,6 +129,69 @@ class AuthController extends Controller
         }
 
         return response()->json($payload);
+    }
+
+    /**
+     * Modifier son propre profil (client, vendeur, livreur).
+     * body : { name, email, phone? }
+     */
+    public function updateMe(Request $request)
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'name'  => ['required', 'string', 'min:2', 'max:100'],
+            'email' => [
+                'required', 'email', 'max:150',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+            'phone' => ['nullable', 'string', 'max:30'],
+        ], [
+            'email.unique' => 'Cette adresse e-mail est déjà utilisée par une autre personne.',
+        ]);
+
+        $user->update([
+            'name'  => $data['name'],
+            'email' => mb_strtolower($data['email']),
+            'phone' => $data['phone'] ?? null,
+        ]);
+
+        $payload = ['message' => 'Informations enregistrées.', 'user' => $user->fresh()];
+
+        if ($user->role === 'vendeur') {
+            $payload['store'] = $user->store()->withCount('products')->first();
+        }
+
+        return response()->json($payload);
+    }
+
+    /**
+     * Changer son propre mot de passe.
+     * body : { current_password, password, password_confirmation }
+     */
+    public function updatePassword(Request $request)
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password'         => ['required', 'string', 'min:8', 'max:72', 'confirmed'],
+        ], [
+            'current_password.required' => 'Indiquez votre mot de passe actuel.',
+            'password.min'              => 'Le nouveau mot de passe doit faire au moins 8 caractères.',
+            'password.confirmed'        => 'Les deux mots de passe ne correspondent pas.',
+        ]);
+
+        if (! Hash::check($data['current_password'], $user->password)) {
+            return response()->json(['message' => 'Votre mot de passe actuel est incorrect.'], 422);
+        }
+
+        $user->update(['password' => $data['password']]);
+
+        // Les autres appareils connectés sont déconnectés par sécurité.
+        $user->tokens()->where('id', '!=', $user->currentAccessToken()?->id)->delete();
+
+        return response()->json(['message' => 'Mot de passe changé.']);
     }
 
     /** Note chaque tentative refusée (sans jamais écrire le mot de passe). */

@@ -46,4 +46,27 @@ class Order extends Model
     {
         return $this->hasMany(OrderItem::class);
     }
+
+    /** Signalements liés à cette commande. */
+    public function reports()
+    {
+        return $this->hasMany(Report::class);
+    }
+
+    /**
+     * Remet en stock les produits d'une commande annulée.
+     * À appeler uniquement quand la commande passe à « annulee ».
+     */
+    public function restoreStock(): void
+    {
+        $quantities = $this->items()
+            ->whereNotNull('product_id')
+            ->selectRaw('product_id, SUM(qty) as total_qty')
+            ->groupBy('product_id')
+            ->pluck('total_qty', 'product_id');
+
+        foreach ($quantities as $productId => $qty) {
+            Product::whereKey($productId)->increment('stock', (int) $qty);
+        }
+    }
 }

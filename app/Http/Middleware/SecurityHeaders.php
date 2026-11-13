@@ -41,6 +41,7 @@ class SecurityHeaders
                 "font-src 'self' data:",
                 "manifest-src 'self'",
                 "media-src 'self'",
+                "worker-src 'self'",
             ]),
         ];
 
