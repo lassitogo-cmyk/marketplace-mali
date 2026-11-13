@@ -11,7 +11,9 @@ services:
     region: frankfurt
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    healthCheckPath: /marche.html
+    # Vérification de santé légère : Render interroge cette adresse en continu.
+    # /up répond "ok" sans charger la page complète (économie de bande passante).
+    healthCheckPath: /up
     autoDeploy: true
     envVars:
       - key: APP_NAME
