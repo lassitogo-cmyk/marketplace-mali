@@ -20,8 +20,11 @@ services:
         value: production
       - key: APP_DEBUG
         value: "false"
+      # Secret privé : à générer une fois (php artisan key:generate --show)
+      # puis à coller dans Render → Environment. Ne JAMAIS écrire la clé ici :
+      # ce dépôt est public.
       - key: APP_KEY
-        value: "base64:zWaDbNE4OJ2epywJvCM18pHVgO/pnhtmfvPDW+0rV2Q="
+        sync: false
       - key: APP_URL
         value: https://marketplace-mali.onrender.com
       - key: APP_LOCALE

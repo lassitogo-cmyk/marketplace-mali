@@ -42,13 +42,17 @@ sur le compte du responsable, qui active ou désactive le compte.
 
 | Rôle | E-mail | Mot de passe |
 | --- | --- | --- |
-| Client | `client@demo.mali` | `password123` |
-| Vendeuse (Boutique Sabali) | `fatou@demo.mali` | `password123` |
-| Vendeur (Wax & Pagne) | `moussa@demo.mali` | `password123` |
+| Client | `client@demo.mali` | privé (non publié) |
+| Vendeuse (Boutique Sabali) | `fatou@demo.mali` | privé (non publié) |
+| Vendeur (Wax & Pagne) | `moussa@demo.mali` | privé (non publié) |
 | Responsable | privé | privé |
 
-> Les comptes client/vendeurs sont des comptes de **test** : changez leur mot
-> de passe ou supprimez-les avant d'ouvrir le marché au public.
+> Les mots de passe de ces comptes ne sont **jamais écrits dans le dépôt**
+> (public). Ils sont communiqués en privé et peuvent être changés à tout
+> moment. En local, `php artisan db:seed` génère un mot de passe aléatoire
+> affiché une seule fois, ou utilise la variable `DEMO_PASSWORD`.
+> Les comptes client/vendeurs sont des comptes de **test** : changez leur
+> mot de passe ou supprimez-les avant d'ouvrir le marché au public.
 
 ## Développement local
 
@@ -74,7 +78,8 @@ Le dépôt est prêt pour **Render** (Docker, plan gratuit) + **Neon**
 
 1. Créer un projet Neon et copier la chaîne
    `postgresql://…?sslmode=require`.
-2. Sur Render : *New → Blueprint*, choisir ce dépôt, renseigner `DB_URL`.
+2. Sur Render : *New → Blueprint*, choisir ce dépôt, renseigner `DB_URL`
+   et `APP_KEY` (`php artisan key:generate --show`).
 3. Le conteneur applique les migrations et importe les données au premier
    démarrage (`docker/entrypoint.sh`).
 
@@ -83,6 +88,7 @@ Variables d'environnement principales :
 ```text
 APP_ENV=production
 APP_DEBUG=false
+APP_KEY=base64:...            # privée, jamais dans le dépôt
 APP_URL=https://marketplace-mali.onrender.com
 DB_CONNECTION=pgsql
 DB_URL=postgresql://…?sslmode=require

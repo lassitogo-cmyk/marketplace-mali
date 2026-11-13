@@ -13,14 +13,22 @@ class DatabaseSeeder extends Seeder
 {
     /**
      * Jeu de données de démonstration de la Marketplace Mali.
-     * Comptes : mot de passe « password123 » pour tous.
+     * Le mot de passe des comptes de démo n'est jamais écrit dans le code :
+     * il vient de DEMO_PASSWORD, sinon un mot de passe aléatoire est généré
+     * et affiché une seule fois à l'écran.
      */
     public function run(): void
     {
+        $demoPassword = env('DEMO_PASSWORD') ?: Str::password(16);
+
+        if (! env('DEMO_PASSWORD')) {
+            $this->command?->warn("Mot de passe des comptes de démonstration : {$demoPassword}");
+        }
+
         User::create([
             'name'     => 'Aminata Diallo',
             'email'    => 'client@demo.mali',
-            'password' => 'password123',
+            'password' => $demoPassword,
             'phone'    => '+223 76 00 00 01',
             'role'     => 'client',
         ]);
@@ -28,7 +36,7 @@ class DatabaseSeeder extends Seeder
         $fatou = User::create([
             'name'     => 'Fatoumata Traoré',
             'email'    => 'fatou@demo.mali',
-            'password' => 'password123',
+            'password' => $demoPassword,
             'phone'    => '+223 76 00 00 02',
             'role'     => 'vendeur',
         ]);
@@ -36,7 +44,7 @@ class DatabaseSeeder extends Seeder
         $moussa = User::create([
             'name'     => 'Moussa Keïta',
             'email'    => 'moussa@demo.mali',
-            'password' => 'password123',
+            'password' => $demoPassword,
             'phone'    => '+223 76 00 00 03',
             'role'     => 'vendeur',
         ]);

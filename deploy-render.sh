@@ -3,6 +3,7 @@
 # Usage :
 #   export RENDER_API_KEY=rnd_...
 #   export DB_URL='postgresql://...:5432/neondb?sslmode=require'
+#   export APP_KEY="base64:..."   # php artisan key:generate --show
 #   ./deploy-render.sh
 #
 # Le service est créé depuis le dépôt public GitHub, en Docker, plan gratuit.
@@ -10,6 +11,7 @@ set -euo pipefail
 
 : "${RENDER_API_KEY:?RENDER_API_KEY manquant (https://dashboard.render.com/u/settings#api-keys)}"
 : "${DB_URL:?DB_URL manquant (chaîne Neon avec :5432 et ?sslmode=require)}"
+: "${APP_KEY:?APP_KEY manquant (générez-la avec: php artisan key:generate --show)}"
 
 API="https://api.render.com/v1"
 REPO="https://github.com/lassitogo-cmyk/marketplace-mali"
@@ -52,11 +54,11 @@ fi
 echo "  service : $SID"
 
 echo "→ Variables d'environnement…"
-ENVVARS=$(jq -n --arg db "$DB_URL" '[
+ENVVARS=$(jq -n --arg db "$DB_URL" --arg key "$APP_KEY" '[
   {key:"APP_NAME",value:"Marketplace Mali"},
   {key:"APP_ENV",value:"production"},
   {key:"APP_DEBUG",value:"false"},
-  {key:"APP_KEY",value:"base64:zWaDbNE4OJ2epywJvCM18pHVgO/pnhtmfvPDW+0rV2Q="},
+  {key:"APP_KEY",value:$key},
   {key:"APP_URL",value:"https://marketplace-mali.onrender.com"},
   {key:"APP_LOCALE",value:"fr"},
   {key:"LOG_CHANNEL",value:"stderr"},
