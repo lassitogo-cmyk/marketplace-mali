@@ -48,6 +48,72 @@ class AdminController extends Controller
     }
 
     /**
+     * Tableau de bord du marché : chiffre d'affaires, commandes,
+     * abonnements, alertes et meilleures boutiques.
+     */
+    public function dashboard(Request $request)
+    {
+        $this->admin($request);
+
+        $paid  = ['confirmee', 'livree'];
+        $today = now()->startOfDay();
+
+        $jours = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
+        $serie = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $start = now()->subDays($i)->startOfDay();
+            $end   = (clone $start)->endOfDay();
+
+            $serie[] = [
+                'label' => $jours[$start->dayOfWeek],
+                'date'  => $start->toDateString(),
+                'total' => (int) Order::whereIn('status', $paid)
+                    ->whereBetween('created_at', [$start, $end])->sum('total'),
+            ];
+        }
+
+        $topBoutiques = \Illuminate\Support\Facades\DB::table('order_items')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->join('stores', 'stores.id', '=', 'order_items.store_id')
+            ->whereIn('orders.status', $paid)
+            ->groupBy('order_items.store_id', 'stores.name', 'stores.id')
+            ->selectRaw('stores.id, stores.name, sum(order_items.subtotal) as ca, count(distinct orders.id) as commandes')
+            ->orderByDesc('ca')
+            ->limit(5)
+            ->get();
+
+        return response()->json([
+            'stats' => [
+                'revenue'        => (int) Order::whereIn('status', $paid)->sum('total'),
+                'revenue_today'  => (int) Order::whereIn('status', $paid)->where('created_at', '>=', $today)->sum('total'),
+                'orders_today'   => Order::where('created_at', '>=', $today)->count(),
+                'orders_pending' => Order::where('status', 'en_attente')->count(),
+                'in_delivery'    => Order::where('status', 'en_livraison')->count(),
+                'delivered'      => Order::where('status', 'livree')->count(),
+                'users'          => User::count(),
+                'clients'        => User::where('role', 'client')->count(),
+                'vendors'        => User::where('role', 'vendeur')->count(),
+                'couriers'       => User::where('role', 'livreur')->count(),
+                'stores'         => Store::count(),
+                'products'       => Product::count(),
+                'subs_active'    => Subscription::where('status', 'actif')->where('ends_at', '>', now())->count(),
+                'subs_soon'      => Subscription::where('status', 'actif')
+                    ->whereBetween('ends_at', [now(), now()->addDays(7)])->count(),
+                'subs_to_verify' => Subscription::where('status', 'paiement_declare')->count(),
+                'subs_revenue'   => (int) Subscription::whereNotNull('activated_at')->sum('amount'),
+                'reports_new'    => Report::where('status', 'nouveau')->count(),
+                'blocked'        => User::whereNotNull('blocked_at')->count(),
+                'stock_low'      => Product::where('stock', '<=', 3)->count(),
+            ],
+            'serie'         => $serie,
+            'top_boutiques' => $topBoutiques,
+            'recentes'      => Order::with('user:id,name')
+                ->orderByDesc('id')->limit(5)
+                ->get(['id', 'user_id', 'reference', 'status', 'total', 'created_at']),
+        ]);
+    }
+
+    /**
      * Toutes les personnes inscrites (recherche + pagination).
      */
     public function users(Request $request)

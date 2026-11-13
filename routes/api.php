@@ -66,6 +66,8 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
     Route::put('/vendor/products/{product}', [VendorController::class, 'updateProduct']);
     Route::delete('/vendor/products/{product}', [VendorController::class, 'deleteProduct']);
     Route::post('/vendor/image', [VendorController::class, 'uploadImage']);
+    // Vendeur : tableau de bord de la boutique
+    Route::get('/vendor/dashboard', [VendorController::class, 'dashboard']);
     Route::get('/vendor/orders', [VendorController::class, 'orders']);
     Route::put('/vendor/orders/{order}/status', [VendorController::class, 'updateOrderStatus']);
     Route::post('/vendor/orders/{order}/payment/confirm', [VendorController::class, 'confirmPayment']);
@@ -85,6 +87,7 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
     // Responsable du marché : personnes + comptes vendeurs
     Route::prefix('admin')->group(function () {
         Route::get('/stats', [AdminController::class, 'stats']);
+        Route::get('/dashboard', [AdminController::class, 'dashboard']);
         Route::get('/users', [AdminController::class, 'users']);
         Route::get('/stores', [AdminController::class, 'stores']);
         Route::post('/vendor', [AdminController::class, 'createVendor']);

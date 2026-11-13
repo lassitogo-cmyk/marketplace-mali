@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Media;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\User;
@@ -275,6 +276,85 @@ class VendorController extends Controller
     }
 
     /* ------------------------------------------------------------ livreurs */
+
+    /**
+     * Tableau de bord de la boutique : ventes, commandes à traiter,
+     * courses, stock faible, top produits et 7 derniers jours.
+     */
+    public function dashboard(Request $request)
+    {
+        $store = $this->requireStore($request);
+
+        $paid    = ['confirmee', 'livree'];
+        $today   = now()->startOfDay();
+        $myItems = fn () => OrderItem::where('store_id', $store->id);
+        $ordersOf = fn () => Order::whereHas('items', fn ($q) => $q->where('store_id', $store->id));
+
+        $salesToday = (int) $myItems()
+            ->whereHas('order', fn ($q) => $q->whereIn('status', $paid)->where('created_at', '>=', $today))
+            ->sum('subtotal');
+
+        $salesTotal = (int) $myItems()
+            ->whereHas('order', fn ($q) => $q->whereIn('status', $paid))
+            ->sum('subtotal');
+
+        // 7 derniers jours (du plus ancien au plus récent).
+        $jours = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
+        $serie = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $start = now()->subDays($i)->startOfDay();
+            $end   = (clone $start)->endOfDay();
+
+            $serie[] = [
+                'label' => $jours[$start->dayOfWeek],
+                'date'  => $start->toDateString(),
+                'total' => (int) $myItems()
+                    ->whereHas('order', fn ($q) => $q->whereIn('status', $paid)
+                        ->whereBetween('created_at', [$start, $end]))
+                    ->sum('subtotal'),
+            ];
+        }
+
+        $topProduits = $myItems()
+            ->whereHas('order', fn ($q) => $q->whereIn('status', $paid))
+            ->selectRaw('product_name, sum(qty) as quantite, sum(subtotal) as total')
+            ->groupBy('product_name')
+            ->orderByDesc('quantite')
+            ->limit(5)
+            ->get();
+
+        $produits = Product::where('store_id', $store->id)->get(['id', 'name', 'stock', 'is_active']);
+
+        return response()->json([
+            'store' => $store->only(['id', 'name', 'description', 'city', 'phone']),
+            'stats' => [
+                'sales_today'   => $salesToday,
+                'sales_total'   => $salesTotal,
+                'orders_today'  => $ordersOf()->where('created_at', '>=', $today)->count(),
+                'to_confirm'    => $ordersOf()->where('status', 'en_attente')->count(),
+                'to_assign'     => $ordersOf()->where('status', 'confirmee')->whereNull('courier_id')->count(),
+                'in_delivery'   => $ordersOf()->where('status', 'en_livraison')->count(),
+                'delivered'     => $ordersOf()->where('status', 'livree')->count(),
+                'products'      => $produits->count(),
+                'products_hidden' => $produits->where('is_active', false)->count(),
+                'low_stock'     => $produits->where('stock', '<=', 3)->count(),
+            ],
+            'serie'         => $serie,
+            'top_produits'  => $topProduits,
+            'stock_faible'  => $produits->where('stock', '<=', 3)->sortBy('stock')->take(5)->values(),
+            'couriers'      => [
+                'total'    => User::where('role', 'livreur')->where('store_id', $store->id)->count(),
+                'en_cours' => Order::whereIn(
+                    'courier_id',
+                    User::where('role', 'livreur')->where('store_id', $store->id)->select('id')
+                )->where('status', 'en_livraison')->count(),
+            ],
+            'subscription'  => $request->user()->latestSubscription,
+            'recentes'      => $ordersOf()
+                ->with(['user:id,name', 'items' => fn ($q) => $q->where('store_id', $store->id)])
+                ->orderByDesc('id')->limit(5)->get(['id', 'user_id', 'reference', 'status', 'total', 'created_at']),
+        ]);
+    }
 
     /** Les livreurs de ma boutique, avec le nombre de courses en cours. */
     public function couriers(Request $request)

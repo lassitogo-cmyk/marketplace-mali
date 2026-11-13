@@ -265,6 +265,25 @@
   .stats .st span{font-size:11px; color:var(--muted)}
   h2{font-size:18px; margin:6px 0 12px}
   h3{font-size:15px; margin:14px 0 6px}
+
+  /* Tableaux de bord (vendeur + responsable) */
+  .kpis{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:12px}
+  .kpi{background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:12px}
+  .kpi .ic{font-size:18px}
+  .kpi b{display:block; font-size:19px; color:var(--green); margin-top:2px; line-height:1.2}
+  .kpi span{font-size:11.5px; color:var(--muted)}
+  .bars{display:flex; gap:6px; align-items:flex-end; height:120px; margin:6px 0 2px}
+  .bar{flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
+       height:100%; gap:3px}
+  .bar b{font-size:9px; color:var(--muted); font-weight:400; min-height:11px}
+  .bar i{display:block; width:100%; background:var(--green); border-radius:6px 6px 2px 2px; min-height:3px}
+  .bar.zero i{background:#E5EDE5}
+  .bar span{font-size:10px; color:var(--muted)}
+  .dash-row{display:flex; justify-content:space-between; gap:8px; padding:7px 0; font-size:13.5px;
+            border-top:1px dashed var(--line)}
+  .dash-row:first-of-type{border-top:0}
+  .dash-row .r{font-weight:700; color:var(--green); white-space:nowrap}
+  .quick{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px}
 </style>
 </head>
 <body>
@@ -590,7 +609,8 @@ function renderTabs(){
   const vendor = user && user.role === 'vendeur';
   const courier = user && user.role === 'livreur';
   const tabs = admin ? [
-    {href:'#/admin', i:'👥', l:'Personnes', on: h === '#/admin' || h === '#/admin/'},
+    {href:'#/admin', i:'📊', l:'Tableau', on: h === '#/admin' || h === '#/admin/'},
+    {href:'#/admin/personnes', i:'👥', l:'Personnes', on: h.startsWith('#/admin/personnes') || h.startsWith('#/admin/vendor') || h.startsWith('#/admin/courier')},
     {href:'#/admin/commandes', i:'📦', l:'Contrôle', on: h.startsWith('#/admin/commandes') || h.startsWith('#/admin/produits') || h.startsWith('#/admin/signalements')},
     {href:'#/admin/abonnements', i:'💳', l:'Abos', on: h.startsWith('#/admin/abonnements') || h.startsWith('#/admin/sub')},
     {href:'#/admin/profile', i:'⚙️', l:'Compte', on: h.startsWith('#/admin/profile')},
@@ -599,11 +619,11 @@ function renderTabs(){
     {href:'#/notifications', i:'🔔', l:'Alertes', on: h.startsWith('#/notifications')},
     {href:'#/account', i:'👤', l:'Compte', on: h.startsWith('#/account')},
   ] : vendor ? [
-    {href:'#/vendor', i:'📥', l:'Commandes', on: h === '#/vendor' || h === '#/vendor/'},
+    {href:'#/vendor', i:'📊', l:'Tableau', on: h === '#/vendor' || h === '#/vendor/'},
+    {href:'#/vendor/commandes', i:'📥', l:'Commandes', on: h.startsWith('#/vendor/commandes')},
     {href:'#/vendor/products', i:'🏷️', l:'Produits', on: h.startsWith('#/vendor/products')},
     {href:'#/vendor/livreurs', i:'🛵', l:'Livreurs', on: h.startsWith('#/vendor/livreurs')},
     {href:'#/vendor/store', i:'🏪', l:'Boutique', on: h.startsWith('#/vendor/store')},
-    {href:'#/vendor/abonnement', i:'💳', l:'Abo', on: h.startsWith('#/vendor/abonnement')},
     {href:'#/account', i:'👤', l:'Compte', on: h.startsWith('#/account')},
   ] : [
     {href:'#/home', i:'🏠', l:'Accueil', on: h.startsWith('#/home') || h.startsWith('#/product') || h === ''},
@@ -1382,13 +1402,127 @@ let vendorSub = null;   // abonnement du vendeur connecté (chargé à chaque vi
 
 async function viewVendor(parts){
   if (!user || user.role !== 'vendeur'){ return location.hash = '#/home'; }
-  const sub = parts[0] || 'orders';
+  const sub = parts[0] || 'dashboard';
   try{ vendorSub = await api('subscriptions/mine'); }catch(e){ vendorSub = null; }
   if (sub === 'abonnement') return vendorSubPage();
   if (sub === 'store')   return vendorStore();
   if (sub === 'livreurs')return vendorCouriers();
+  if (sub === 'commandes')return vendorOrders();
   if (sub === 'products')return vendorProducts(parts[1]);
-  vendorOrders();
+  return vendorDashboard();
+}
+
+/* ---------- tableau de bord du vendeur ---------- */
+
+/** Petit graphique en barres des 7 derniers jours. */
+function barChart(serie){
+  const liste = serie || [];
+  const max = Math.max(1, ...liste.map(x => x.total || 0));
+  return '<div class="bars">' + liste.map(x => {
+    const v = x.total || 0;
+    const h = Math.max(3, Math.round((v / max) * 100));
+    const court = v >= 1000 ? Math.round(v / 1000) + 'k' : (v || '');
+    return '<div class="bar' + (v ? '' : ' zero') + '" title="' + esc(x.date) + ' · ' + fcfa(v) + '">' +
+      '<b>' + court + '</b>' +
+      '<i style="height:' + h + '%"></i>' +
+      '<span>' + esc(x.label) + '</span>' +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+async function vendorDashboard(){
+  $('#app').innerHTML = '<div class="empty">Chargement…</div>';
+  let d;
+  try{ d = await api('vendor/dashboard'); }
+  catch(e){
+    if (/boutique/i.test(e.message)){
+      $('#app').innerHTML = vendorShell('dashboard',
+        '<div class="card banner-attn">🏪 <b>Créez votre boutique</b> pour commencer à vendre sur le marché.</div>' +
+        '<button class="btn" onclick="app.go(\'#/vendor/store\')">🏪 Créer ma boutique</button>');
+      return;
+    }
+    $('#app').innerHTML = vendorShell('dashboard', vendorErrCard(e.message));
+    return;
+  }
+
+  const s     = d.stats || {};
+  const sub   = d.subscription;
+  const kpi   = (ic, val, label) =>
+    '<div class="kpi"><div class="ic">' + ic + '</div><b>' + val + '</b><span>' + label + '</span></div>';
+
+  // Alertes à traiter aujourd'hui
+  const alertes = [];
+  if (s.to_confirm) alertes.push('📥 <b>' + s.to_confirm + '</b> commande(s) à confirmer' +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/vendor/commandes\')">Voir</button>');
+  if (s.to_assign) alertes.push('🛵 <b>' + s.to_assign + '</b> commande(s) confirmée(s) sans livreur' +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/vendor/commandes\')">Attribuer</button>');
+  if (!d.couriers.total) alertes.push('🛵 <b>Aucun livreur</b> dans votre boutique' +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/vendor/livreurs\')">Créer</button>');
+  if (s.low_stock) alertes.push('⚠️ <b>' + s.low_stock + '</b> produit(s) presque en rupture de stock' +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/vendor/products\')">Stock</button>');
+  if (!sub || sub.statut !== 'actif') alertes.push('💳 ' + (sub ? 'Abonnement « ' + (SUBS[sub.statut] ? SUBS[sub.statut].label : sub.statut) + ' »' : 'Pas encore d\'abonnement') +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/vendor/abonnement\')">Gérer</button>');
+
+  const aboCard = sub && sub.statut === 'actif'
+    ? '<div class="dash-row"><span>💳 Abonnement</span><span class="r">' + (sub.jours_restants || 0) + ' j restants</span></div>'
+    : '<div class="dash-row"><span>💳 Abonnement</span><span class="r">à régler</span></div>';
+
+  const top = (d.top_produits || []).map(p =>
+    '<div class="dash-row"><span>🏷️ ' + esc(p.product_name) + '</span>' +
+    '<span class="r">' + p.quantite + ' vendu(s)</span></div>').join('');
+
+  const stock = (d.stock_faible || []).map(p =>
+    '<div class="dash-row"><span>📦 ' + esc(p.name) + '</span>' +
+    '<span class="r" style="color:' + (p.stock ? '#B45309' : 'var(--red)') + '">' + p.stock + ' restant(s)</span></div>').join('');
+
+  const recentes = (d.recentes || []).map(o => {
+    const part = (o.items || []).reduce((t, it) => t + it.subtotal, 0);
+    return '<div class="dash-row"><span><b>' + esc(o.reference) + '</b> · ' + esc(o.user && o.user.name || 'Client') + '</span>' +
+      '<span class="r">' + fcfa(part) + '</span></div>';
+  }).join('');
+
+  $('#app').innerHTML = vendorShell('dashboard',
+    '<div class="kpis">' +
+      kpi('💰', fcfa(s.sales_today || 0), 'Ventes du jour') +
+      kpi('📥', s.to_confirm || 0, 'À confirmer') +
+      kpi('🛵', s.in_delivery || 0, 'En livraison') +
+      kpi('📈', fcfa(s.sales_total || 0), 'Chiffre d\'affaires') +
+    '</div>' +
+
+    (alertes.length
+      ? '<div class="card" style="border-left:4px solid #FDBA74">' +
+          alertes.map(a => '<div class="dash-row"><span>' + a + '</span></div>').join('') +
+        '</div>'
+      : '<div class="card banner-ok">✨ Rien à traiter — votre boutique est à jour.</div>') +
+
+    '<div class="card"><h3 style="margin-top:0">📈 Ventes des 7 derniers jours</h3>' +
+      barChart(d.serie) +
+      '<div class="muted center" style="margin-top:6px">' + (s.orders_today || 0) + ' commande(s) aujourd\'hui · ' +
+        (s.delivered || 0) + ' livrée(s) au total</div>' +
+    '</div>' +
+
+    '<div class="quick">' +
+      '<button class="btn small" onclick="app.go(\'#/vendor/commandes\')">📥 Commandes</button>' +
+      '<button class="btn small" onclick="app.go(\'#/vendor/products/new\')">➕ Nouveau produit</button>' +
+      '<button class="btn small ghost" onclick="app.go(\'#/vendor/livreurs\')">🛵 Mes livreurs</button>' +
+      '<button class="btn small ghost" onclick="app.go(\'#/vendor/store\')">🏪 Ma boutique</button>' +
+    '</div>' +
+
+    (top ? '<div class="card"><h3 style="margin-top:0">🏆 Meilleures ventes</h3>' + top + '</div>' : '') +
+    (stock ? '<div class="card"><h3 style="margin-top:0">⚠️ Stock à recharger</h3>' + stock + '</div>' : '') +
+
+    '<div class="card"><h3 style="margin-top:0">🛵 Livraisons</h3>' +
+      '<div class="dash-row"><span>Livreurs de ma boutique</span><span class="r">' + (d.couriers.total || 0) + '</span></div>' +
+      '<div class="dash-row"><span>Courses en cours</span><span class="r">' + (d.couriers.en_cours || 0) + '</span></div>' +
+      aboCard +
+      '<div class="quick"><button class="btn small ghost" onclick="app.go(\'#/vendor/livreurs\')">Gérer mes livreurs</button>' +
+      '<button class="btn small ghost" onclick="app.go(\'#/vendor/abonnement\')">Mon abonnement</button></div>' +
+    '</div>' +
+
+    (recentes ? '<div class="card"><h3 style="margin-top:0">🕒 Dernières commandes</h3>' + recentes + '</div>' : '') +
+    '<div class="muted center" style="margin:10px 0 4px">🏪 ' + esc(d.store.name) +
+      ' · ' + (s.products || 0) + ' produit(s)' + (s.products_hidden ? ' (' + s.products_hidden + ' masqué(s))' : '') + '</div>'
+  );
 }
 
 async function vendorOrders(){
@@ -1850,6 +1984,7 @@ app.saveStore = async () => {
 };
 
 const VENDOR_TITLES = {
+  dashboard:  {t:'📊 Tableau de bord', s:'Votre boutique en un coup d\'œil'},
   orders:     {t:'📥 Commandes reçues', s:'Les commandes de vos clients'},
   products:   {t:'🏷️ Mes produits',     s:'Ce que vous vendez sur le marché'},
   livreurs:   {t:'🛵 Mes livreurs',      s:'Vos livreurs ne voient que les commandes de votre boutique'},
@@ -2093,6 +2228,7 @@ const adminList = { items:[], page:1, last:1, search:'', role:'tous' };
 
 async function viewAdmin(parts){
   if (!user || user.role !== 'admin'){ return location.hash = '#/home'; }
+  if (parts[0] === 'personnes')    return adminUsers();
   if (parts[0] === 'vendor')       return adminVendorForm();
   if (parts[0] === 'courier')      return adminCourierForm();
   if (parts[0] === 'profile')      return adminProfile();
@@ -2101,7 +2237,86 @@ async function viewAdmin(parts){
   if (parts[0] === 'commandes')    return adminOrders();
   if (parts[0] === 'produits')     return adminProducts();
   if (parts[0] === 'signalements') return adminReports();
-  adminUsers();
+  adminDashboard();
+}
+
+/* ---------- tableau de bord du responsable ---------- */
+
+async function adminDashboard(){
+  $('#app').innerHTML = '<div class="empty">Chargement du tableau de bord…</div>';
+  let d;
+  try{ d = await api('admin/dashboard'); }
+  catch(e){
+    $('#app').innerHTML = '<h2>📊 Tableau de bord</h2>' +
+      '<div class="card err" style="display:block">'+esc(e.message)+'</div>';
+    return;
+  }
+
+  const s   = d.stats || {};
+  const kpi = (ic, val, label) =>
+    '<div class="kpi"><div class="ic">' + ic + '</div><b>' + val + '</b><span>' + label + '</span></div>';
+
+  const alertes = [];
+  if (s.subs_to_verify) alertes.push('💰 <b>' + s.subs_to_verify + '</b> paiement(s) Orange Money à vérifier' +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/abonnements\')">Vérifier</button>');
+  if (s.reports_new) alertes.push('🚨 <b>' + s.reports_new + '</b> signalement(s) sans réponse' +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/signalements\')">Voir</button>');
+  if (s.orders_pending) alertes.push('📥 <b>' + s.orders_pending + '</b> commande(s) en attente chez les vendeurs' +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/commandes\')">Contrôler</button>');
+  if (s.subs_soon) alertes.push('⏳ <b>' + s.subs_soon + '</b> abonnement(s) expirent dans moins de 7 jours' +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/abonnements\')">Voir</button>');
+  if (s.stock_low) alertes.push('⚠️ <b>' + s.stock_low + '</b> produit(s) presque en rupture');
+  if (s.blocked) alertes.push('⛔ <b>' + s.blocked + '</b> compte(s) bloqué(s)');
+
+  const tops = (d.top_boutiques || []).map(b =>
+    '<div class="dash-row"><span>🏪 ' + esc(b.name) + ' <span class="muted">· ' + b.commandes + ' cmd</span></span>' +
+    '<span class="r">' + fcfa(b.ca) + '</span></div>').join('');
+
+  const recentes = (d.recentes || []).map(o =>
+    '<div class="dash-row"><span><b>' + esc(o.reference) + '</b> · ' + esc(o.user && o.user.name || 'Client') + '</span>' +
+    '<span class="r">' + fcfa(o.total) + '</span></div>').join('');
+
+  $('#app').innerHTML =
+    '<h2>📊 Tableau de bord du marché</h2>' +
+    '<div class="muted" style="margin:-6px 0 12px">' + ddate(new Date().toISOString()) + '</div>' +
+
+    '<div class="kpis">' +
+      kpi('💰', fcfa(s.revenue_today || 0), 'Ventes du jour') +
+      kpi('📈', fcfa(s.revenue || 0), 'Chiffre d\'affaires') +
+      kpi('📦', s.orders_today || 0, 'Commandes aujourd\'hui') +
+      kpi('🏪', s.stores || 0, 'Boutiques') +
+    '</div>' +
+
+    (alertes.length
+      ? '<div class="card" style="border-left:4px solid #FDBA74">' +
+          alertes.map(a => '<div class="dash-row"><span>' + a + '</span></div>').join('') +
+        '</div>'
+      : '<div class="card banner-ok">✨ Aucune alerte — le marché tourne bien.</div>') +
+
+    '<div class="card"><h3 style="margin-top:0">📈 Ventes des 7 derniers jours</h3>' +
+      barChart(d.serie) +
+      '<div class="muted center" style="margin-top:6px">' + (s.delivered || 0) + ' commande(s) livrée(s) · ' +
+        (s.in_delivery || 0) + ' en livraison</div>' +
+    '</div>' +
+
+    '<div class="quick">' +
+      '<button class="btn small" onclick="app.go(\'#/admin/vendor\')">➕ Vendeur</button>' +
+      '<button class="btn small ghost" onclick="app.go(\'#/admin/personnes\')">👥 Personnes</button>' +
+      '<button class="btn small ghost" onclick="app.go(\'#/admin/commandes\')">📦 Contrôle</button>' +
+      '<button class="btn small ghost" onclick="app.go(\'#/admin/abonnements\')">💳 Abonnements</button>' +
+    '</div>' +
+
+    '<div class="card"><h3 style="margin-top:0">👥 Le marché</h3>' +
+      '<div class="dash-row"><span>Clientes / clients</span><span class="r">' + (s.clients || 0) + '</span></div>' +
+      '<div class="dash-row"><span>Vendeurs</span><span class="r">' + (s.vendors || 0) + '</span></div>' +
+      '<div class="dash-row"><span>Livreurs</span><span class="r">' + (s.couriers || 0) + '</span></div>' +
+      '<div class="dash-row"><span>Produits en vente</span><span class="r">' + (s.products || 0) + '</span></div>' +
+      '<div class="dash-row"><span>Abonnements actifs</span><span class="r">' + (s.subs_active || 0) + '</span></div>' +
+      '<div class="dash-row"><span>Abonnements encaissés</span><span class="r">' + fcfa(s.subs_revenue || 0) + '</span></div>' +
+    '</div>' +
+
+    (tops ? '<div class="card"><h3 style="margin-top:0">🏆 Meilleures boutiques</h3>' + tops + '</div>' : '') +
+    (recentes ? '<div class="card"><h3 style="margin-top:0">🕒 Dernières commandes</h3>' + recentes + '</div>' : '');
 }
 
 async function adminUsers(){
@@ -2874,7 +3089,7 @@ app.createVendor = async () => {
       name, email:mail, password:pass,
       phone: tel || null, store_name: store || null}});
     toast('✓ Compte vendeur créé pour ' + name + ' !');
-    location.hash = '#/admin';
+    location.hash = '#/admin/personnes';
   }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
 };
 
@@ -2929,7 +3144,7 @@ app.createCourier = async () => {
   try{
     await api('admin/courier', {method:'POST', body:{name, email:mail, password:pass, phone:tel, store_id:store}});
     toast('✓ Compte livreur créé pour ' + name + ' !');
-    location.hash = '#/admin';
+    location.hash = '#/admin/personnes';
   }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
 };
 
