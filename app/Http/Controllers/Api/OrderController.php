@@ -47,10 +47,7 @@ class OrderController extends Controller
 
         $products = Product::where('is_active', true)
             ->whereIn('id', $items->pluck('product_id')->unique()->all())
-            // On ne peut commander que chez un vendeur dont l'abonnement est actif.
-            ->whereHas('store.user.subscriptions', function ($q) {
-                $q->where('status', 'actif')->where('ends_at', '>', now());
-            })
+            ->whereHas('store.user', fn ($q) => $q->whereNull('blocked_at'))
             ->get()
             ->keyBy('id');
 

@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Commission;
 use App\Models\Media;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\CommissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -166,6 +169,11 @@ class VendorController extends Controller
         }
 
         $order->update($attrs);
+
+        // Commande livrée : la commission du marché est calculée aussitôt.
+        if ($data['status'] === 'livree') {
+            CommissionService::forOrder($order);
+        }
 
         if ($data['status'] === 'confirmee' && $ancien !== 'confirmee') {
             $this->notifier->to(
@@ -350,9 +358,70 @@ class VendorController extends Controller
                 )->where('status', 'en_livraison')->count(),
             ],
             'subscription'  => $request->user()->latestSubscription,
+            'commission'    => CommissionService::summary($store->id),
             'recentes'      => $ordersOf()
                 ->with(['user:id,name', 'items' => fn ($q) => $q->where('store_id', $store->id)])
                 ->orderByDesc('id')->limit(5)->get(['id', 'user_id', 'reference', 'status', 'total', 'created_at']),
+        ]);
+    }
+
+    /* ----------------------------------------------------------- commission */
+
+    /**
+     * Ma commission : taux, montants à verser / déclarés / encaissés,
+     * historique par commande et numéro Orange Money du responsable.
+     */
+    public function commission(Request $request)
+    {
+        $store = $this->requireStore($request);
+
+        $historique = Commission::where('store_id', $store->id)
+            ->with(['order:id,reference,delivered_at'])
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'summary'      => CommissionService::summary($store->id),
+            'historique'   => $historique,
+            'orange_money' => [
+                'number' => Setting::get('orange_money_number'),
+                'name'   => Setting::get('orange_money_name'),
+            ],
+        ]);
+    }
+
+    /**
+     * Déclarer le versement Orange Money des commissions « à verser ».
+     * body : { payer_name, payer_phone, payment_ref? }
+     */
+    public function declareCommission(Request $request)
+    {
+        $store = $this->requireStore($request);
+
+        $data = $request->validate([
+            'payer_name'  => ['required', 'string', 'min:2', 'max:100'],
+            'payer_phone' => ['required', 'string', 'min:6', 'max:30'],
+            'payment_ref' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $dues    = Commission::where('store_id', $store->id)->where('status', 'due');
+        $montant = (int) (clone $dues)->sum('amount');
+
+        abort_if($montant <= 0, 422, 'Aucune commission à verser pour le moment.');
+
+        $dues->update([
+            'status'      => 'declaree',
+            'payer_name'  => $data['payer_name'],
+            'payer_phone' => $data['payer_phone'],
+            'payment_ref' => $data['payment_ref'] ?? null,
+            'declared_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Versement déclaré — le responsable va vérifier.',
+            'montant' => $montant,
+            'summary' => CommissionService::summary($store->id),
         ]);
     }
 

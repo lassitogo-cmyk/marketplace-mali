@@ -14,10 +14,9 @@ class StoreController extends Controller
     public function index(Request $request)
     {
         $stores = Store::query()
-            // Boutiques des vendeurs dont l'abonnement est actif uniquement.
-            ->whereHas('user.subscriptions', function ($q) {
-                $q->where('status', 'actif')->where('ends_at', '>', now());
-            })
+            // Modèle commission : toutes les boutiques sont visibles,
+            // sauf celles d'un vendeur bloqué.
+            ->whereHas('user', fn ($q) => $q->whereNull('blocked_at'))
             ->withCount(['products' => function ($q) {
                 $q->where('is_active', true);
             }])->orderBy('name')->paginate(12);
@@ -30,13 +29,7 @@ class StoreController extends Controller
      */
     public function show(Store $store)
     {
-        abort_unless(
-            $store->user->subscriptions()
-                ->where('status', 'actif')
-                ->where('ends_at', '>', now())
-                ->exists(),
-            404
-        );
+        abort_if($store->user?->blocked_at !== null, 404);
 
         $store->loadCount(['products' => function ($q) {
             $q->where('is_active', true);

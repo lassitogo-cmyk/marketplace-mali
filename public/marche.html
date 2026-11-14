@@ -612,7 +612,7 @@ function renderTabs(){
     {href:'#/admin', i:'📊', l:'Tableau', on: h === '#/admin' || h === '#/admin/'},
     {href:'#/admin/personnes', i:'👥', l:'Personnes', on: h.startsWith('#/admin/personnes') || h.startsWith('#/admin/vendor') || h.startsWith('#/admin/courier')},
     {href:'#/admin/commandes', i:'📦', l:'Contrôle', on: h.startsWith('#/admin/commandes') || h.startsWith('#/admin/produits') || h.startsWith('#/admin/signalements')},
-    {href:'#/admin/abonnements', i:'💳', l:'Abos', on: h.startsWith('#/admin/abonnements') || h.startsWith('#/admin/sub')},
+    {href:'#/admin/commissions', i:'💰', l:'Commissions', on: h.startsWith('#/admin/commissions') || h.startsWith('#/admin/abonnements') || h.startsWith('#/admin/sub')},
     {href:'#/admin/profile', i:'⚙️', l:'Compte', on: h.startsWith('#/admin/profile')},
   ] : courier ? [
     {href:'#/courier', i:'🛵', l:'Livraisons', on: h.startsWith('#/courier')},
@@ -1398,13 +1398,13 @@ app.register = async () => {
 
 /* ---------- espace vendeur ---------- */
 
-let vendorSub = null;   // abonnement du vendeur connecté (chargé à chaque visite)
+let vendorCom = null;   // commission du marché (10 % des ventes livrées)
 
 async function viewVendor(parts){
   if (!user || user.role !== 'vendeur'){ return location.hash = '#/home'; }
   const sub = parts[0] || 'dashboard';
-  try{ vendorSub = await api('subscriptions/mine'); }catch(e){ vendorSub = null; }
-  if (sub === 'abonnement') return vendorSubPage();
+  try{ vendorCom = await api('vendor/commission'); }catch(e){ vendorCom = null; }
+  if (sub === 'abonnement' || sub === 'commission') return vendorCommissionPage();
   if (sub === 'store')   return vendorStore();
   if (sub === 'livreurs')return vendorCouriers();
   if (sub === 'commandes')return vendorOrders();
@@ -1446,7 +1446,7 @@ async function vendorDashboard(){
   }
 
   const s     = d.stats || {};
-  const sub   = d.subscription;
+  const com   = d.commission || {};
   const kpi   = (ic, val, label) =>
     '<div class="kpi"><div class="ic">' + ic + '</div><b>' + val + '</b><span>' + label + '</span></div>';
 
@@ -1460,12 +1460,14 @@ async function vendorDashboard(){
     '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/vendor/livreurs\')">Créer</button>');
   if (s.low_stock) alertes.push('⚠️ <b>' + s.low_stock + '</b> produit(s) presque en rupture de stock' +
     '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/vendor/products\')">Stock</button>');
-  if (!sub || sub.statut !== 'actif') alertes.push('💳 ' + (sub ? 'Abonnement « ' + (SUBS[sub.statut] ? SUBS[sub.statut].label : sub.statut) + ' »' : 'Pas encore d\'abonnement') +
-    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/vendor/abonnement\')">Gérer</button>');
+  if (com.due) alertes.push('💰 <b>' + fcfa(com.due) + '</b> de commission à verser au marché (' + (com.rate || 10) + ' %)' +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/vendor/commission\')">Verser</button>');
+  if (com.declaree) alertes.push('⏳ <b>' + fcfa(com.declaree) + '</b> de commission déclarée — vérification du responsable en cours');
 
-  const aboCard = sub && sub.statut === 'actif'
-    ? '<div class="dash-row"><span>💳 Abonnement</span><span class="r">' + (sub.jours_restants || 0) + ' j restants</span></div>'
-    : '<div class="dash-row"><span>💳 Abonnement</span><span class="r">à régler</span></div>';
+  const comCard =
+    '<div class="dash-row"><span>💰 Commission du marché (' + (com.rate || 10) + ' %)</span><span class="r">' + fcfa(com.due || 0) + ' à verser</span></div>' +
+    (com.declaree ? '<div class="dash-row"><span>⏳ Déclarée au responsable</span><span class="r">' + fcfa(com.declaree) + '</span></div>' : '') +
+    '<div class="dash-row"><span>✅ Déjà encaissée par le marché</span><span class="r">' + fcfa(com.payee || 0) + '</span></div>';
 
   const top = (d.top_produits || []).map(p =>
     '<div class="dash-row"><span>🏷️ ' + esc(p.product_name) + '</span>' +
@@ -1514,9 +1516,9 @@ async function vendorDashboard(){
     '<div class="card"><h3 style="margin-top:0">🛵 Livraisons</h3>' +
       '<div class="dash-row"><span>Livreurs de ma boutique</span><span class="r">' + (d.couriers.total || 0) + '</span></div>' +
       '<div class="dash-row"><span>Courses en cours</span><span class="r">' + (d.couriers.en_cours || 0) + '</span></div>' +
-      aboCard +
+      comCard +
       '<div class="quick"><button class="btn small ghost" onclick="app.go(\'#/vendor/livreurs\')">Gérer mes livreurs</button>' +
-      '<button class="btn small ghost" onclick="app.go(\'#/vendor/abonnement\')">Mon abonnement</button></div>' +
+      '<button class="btn small ghost" onclick="app.go(\'#/vendor/commission\')">💰 Ma commission</button></div>' +
     '</div>' +
 
     (recentes ? '<div class="card"><h3 style="margin-top:0">🕒 Dernières commandes</h3>' + recentes + '</div>' : '') +
@@ -1989,7 +1991,7 @@ const VENDOR_TITLES = {
   products:   {t:'🏷️ Mes produits',     s:'Ce que vous vendez sur le marché'},
   livreurs:   {t:'🛵 Mes livreurs',      s:'Vos livreurs ne voient que les commandes de votre boutique'},
   store:      {t:'🏪 Ma boutique',      s:'Vos informations de vendeur'},
-  abonnement: {t:'💳 Mon abonnement',   s:'10 000 FCFA / 30 jours'},
+  commission: {t:'💰 Ma commission',    s:'Commission du marché : part retenue sur chaque vente livrée'},
 };
 
 function vendorErrCard(msg){
@@ -1998,110 +2000,124 @@ function vendorErrCard(msg){
     (need ? '<button class="btn" onclick="app.go(\'#/vendor/store\')">🏪 Créer ma boutique</button>' : '');
 }
 
-/* Bandeau d'état d'abonnement, affiché en haut de chaque écran vendeur. */
-function subBanner(){
-  if (!vendorSub) return '';
-  const s = vendorSub.subscription;
-  const plan = vendorSub.plan || {amount:10000, duration_days:30};
+/* Bandeau commission, affiché en haut de chaque écran vendeur. */
+function comBanner(){
+  if (!vendorCom) return '';
+  const s = vendorCom.summary || {};
 
-  if (!s){
-    return '<div class="card banner-attn">💳 <b>Pas encore d\'abonnement</b> — ' +
-      fcfa(plan.amount)+' / '+plan.duration_days+' jours. ' +
-      '<button class="btn small" onclick="app.go(\'#/vendor/abonnement\')">S\'abonner</button></div>';
+  if (s.due > 0){
+    return '<div class="card banner-attn">💰 <b>Commission '+(s.rate||10)+' % · '+fcfa(s.due)+' à verser</b> au responsable du marché. ' +
+      '<button class="btn small" onclick="app.go(\'#/vendor/commission\')">Voir</button></div>';
   }
-  if (s.statut === 'actif'){
-    return '<div class="card banner-ok">💳 Abonnement actif · <b>'+s.jours_restants+' jour(s) restant(s)</b>' +
-      ' · jusqu\'au '+ddate(s.ends_at)+'</div>';
+  if (s.declaree > 0){
+    return '<div class="card banner-attn">⏳ <b>Versement déclaré — en vérification</b> — '+fcfa(s.declaree)+
+      '. Le responsable vérifie la réception sur son compte Orange Money. ' +
+      '<button class="btn small" onclick="app.go(\'#/vendor/commission\')">Voir</button></div>';
   }
-  if (s.statut === 'paiement_declare'){
-    return '<div class="card banner-attn">💰 <b>Paiement déclaré — en vérification</b> — ' +
-      'le responsable du marché vérifie la réception sur son compte Orange Money. ' +
-      '<button class="btn small" onclick="app.go(\'#/vendor/abonnement\')">Voir</button></div>';
-  }
-  if (s.statut === 'en_attente'){
-    return '<div class="card banner-attn">⏳ <b>Abonnement en attente d\'activation</b> — ' +
-      fcfa(s.amount)+' à régler au responsable. ' +
-      '<button class="btn small" onclick="app.go(\'#/vendor/abonnement\')">Voir</button></div>';
-  }
-  return '<div class="card banner-bad">⛔ <b>Abonnement '+SUBS[s.statut].label.toLowerCase()+'</b> — ' +
-    'vos produits sont masqués du marché. ' +
-    '<button class="btn small" onclick="app.go(\'#/vendor/abonnement\')">Renouveler</button></div>';
+  return '<div class="card banner-ok">✅ <b>Commissions à jour</b> · '+(s.rate||10)+' % reversé au marché sur chaque vente livrée</div>';
 }
 
 function vendorShell(sub, content){
   const v = VENDOR_TITLES[sub] || VENDOR_TITLES.orders;
   return '<h2>'+v.t+'</h2><div class="muted" style="margin:-6px 0 12px">'+v.s+'</div>' +
-         subBanner() + content;
+         comBanner() + content;
 }
 
-/* ---------- page abonnement du vendeur ---------- */
+/* ---------- page commission du vendeur ---------- */
 
-function vendorSubPage(){
-  const data = vendorSub || {};
-  const s    = data.subscription;
-  const plan = data.plan || {amount:10000, duration_days:30};
-  const st   = s ? s.statut : null;
+function comPill(st){
+  const map = {
+    due:      ['À verser',  '#B45309', '#FEF3C7'],
+    declaree: ['Déclarée',  '#1D4ED8', '#DBEAFE'],
+    payee:    ['Encaissée', '#15803D', '#DCFCE7'],
+  };
+  const s = map[st] || [st, '#555', '#EEE'];
+  return '<span class="pill" style="color:'+s[1]+';background:'+s[2]+'">'+s[0]+'</span>';
+}
+
+function vendorCommissionPage(){
+  const data = vendorCom || {};
+  const s    = data.summary || {rate:10, due:0, declaree:0, payee:0};
   const om   = data.orange_money || {};
+  const num  = String(om.number || '').replace(/\D/g, '');
+  const disp = fmtPhone(num);
 
-  let head = '';
-  if (!s){
-    head = '<div class="card banner-attn"><b>Abonnez-vous pour vendre</b><br>' +
-      'Abonnement <b>'+fcfa(plan.amount)+' / '+plan.duration_days+' jours</b>.<br>' +
-      'Cliquez ci-dessous, puis payez par <b>Orange Money</b> au numéro du responsable. ' +
-      'Dès qu\'il vérifie le paiement, votre boutique et vos produits apparaissent sur le marché.</div>';
-  } else if (st === 'actif'){
-    head = '<div class="card banner-ok"><b>Abonnement actif ✅</b><br>' +
-      'Du '+ddate(s.starts_at)+' au '+ddate(s.ends_at)+'<br>' +
-      '<b>'+s.jours_restants+' jour(s) restant(s)</b> · '+fcfa(s.amount)+'</div>';
-  } else if (st === 'paiement_declare'){
-    head = '<div class="card banner-attn"><b>Paiement déclaré — en vérification 💰</b><br>' +
-      'Montant : <b>'+fcfa(s.amount)+'</b> · Durée : '+s.duration_days+' jours<br>' +
-      'Le responsable du marché vérifie la réception sur son compte Orange Money, ' +
-      'puis active votre abonnement.<br>' +
-      '<span class="muted">Vos produits sont masqués du marché en attendant.</span></div>';
-  } else if (st === 'en_attente'){
-    head = '<div class="card banner-attn"><b>En attente de paiement ⏳</b><br>' +
-      'Montant : <b>'+fcfa(s.amount)+'</b> · Durée : '+s.duration_days+' jours<br>' +
-      'Demande du '+ddate(s.created_at)+'.<br>' +
-      '<span class="muted">Payez par Orange Money ci-dessous, puis déclarez votre paiement.</span></div>';
-  } else {
-    head = '<div class="card banner-bad"><b>Abonnement '+SUBS[st].label.toLowerCase()+'</b><br>' +
-      (s.ends_at ? 'Il s\'est terminé le '+ddate(s.ends_at)+'.<br>' : '') +
-      'Vos produits sont masqués du marché. Renouvelez pour réapparaître.</div>';
-  }
+  const hist = (data.historique || []).map(c => {
+    const o = c.order || {};
+    return '<div class="dash-row"><span><b>' + esc(o.reference || ('Commande #' + c.order_id)) + '</b>' +
+      '<span class="muted"> · vente ' + fcfa(c.base) + '</span></span>' +
+      '<span class="r">' + fcfa(c.amount) + ' ' + comPill(c.status) + '</span></div>';
+  }).join('');
 
-  const peutDemander = !s || st === 'expire' || st === 'desactive';
-  const btn = peutDemander
-    ? '<button class="btn" onclick="app.demanderAbo()">💳 ' +
-      (s ? 'Demander le renouvellement' : 'Demander l\'abonnement') +
-      ' — '+fcfa(plan.amount)+'</button>'
-    : '';
-
-  // Paiement Orange Money : dès qu'une demande est en cours.
   let pay = '';
-  if (s && (st === 'en_attente' || st === 'paiement_declare')){
-    pay = payCard(s, om, data.paiement);
-  }
-  // Renouvellement : le vendeur peut déjà payer sans attendre.
-  if (!s || st === 'expire' || st === 'desactive'){
-    pay = '<div class="card demo">💡 Après votre demande, le numéro Orange Money du responsable ' +
-      'et le formulaire de paiement s\'affichent ici.</div>';
+  if (s.due > 0){
+    pay = '<div class="card">' +
+      '<b>💳 Verser la commission</b>' +
+      '<div class="om-box">' +
+        '<div class="muted">Montant à envoyer :</div>' +
+        '<div class="om-num">' + fcfa(s.due) + '</div>' +
+        '<div class="muted">Numéro Orange Money du responsable :</div>' +
+        '<div class="om-num">' + (num ? disp : 'non renseigné') + '</div>' +
+        (om.name ? '<div class="muted">Au nom de <b>' + esc(om.name) + '</b></div>' : '') +
+        (num ? '<button class="btn small ghost" onclick="app.copyOM()">📋 Copier le numéro</button>' : '') +
+      '</div>' +
+      '<ol class="om-steps">' +
+        '<li>Ouvrez <b>Orange Money</b> (ou composez <b>#144#</b>).</li>' +
+        '<li>Choisissez <b>Transfert d\'argent</b> → envoyez <b>' + fcfa(s.due) + '</b> au <b>' + disp + '</b>.</li>' +
+        '<li>Gardez le <b>nom</b>, le <b>numéro</b> et l\'<b>ID de transaction</b> du reçu.</li>' +
+        '<li>Remplissez le formulaire : le responsable vérifie et valide.</li>' +
+      '</ol>' +
+      '<div class="sep"></div>' +
+      '<b>Qui a versé ?</b>' +
+      '<label>Nom de la personne qui a payé *</label>' +
+      '<input id="com-name" value="'+esc((user && user.name) || '')+'" placeholder="Ex. Fatou Traoré">' +
+      '<label>Numéro Orange Money utilisé *</label>' +
+      '<input id="com-phone" type="tel" inputmode="tel" placeholder="Ex. 76 00 00 02">' +
+      '<label>ID de transaction (sur le reçu)</label>' +
+      '<input id="com-ref" placeholder="Ex. 123456789">' +
+      '<div class="err" id="com-err" style="display:none"></div>' +
+      '<button class="btn" onclick="app.declarerCommission()">💰 J\'ai versé — envoyer la preuve</button>' +
+      '<div class="muted" style="margin-top:4px">Montant : <b>' + fcfa(s.due) + '</b></div>' +
+    '</div>';
+  } else if (s.declaree > 0){
+    pay = '<div class="card banner-attn">⏳ <b>Versement déclaré — en vérification</b><br>' +
+      'Montant : <b>' + fcfa(s.declaree) + '</b>. Le responsable vérifie la réception sur son compte Orange Money.</div>';
+  } else {
+    pay = '<div class="card banner-ok">✅ <b>Vous êtes à jour</b><br>La commission de ' + (s.rate || 10) +
+      ' % est retenue automatiquement sur chaque commande livrée.</div>';
   }
 
-  const events = s ? timeline(s.events) : '';
-
-  $('#app').innerHTML =
-    '<h2>💳 Mon abonnement</h2>' +
-    '<div class="muted" style="margin:-6px 0 12px">Abonnement vendeur : ' +
-      fcfa(plan.amount)+' / '+plan.duration_days+' jours · paiement Orange Money</div>' +
-    subBanner() +
-    head + btn + pay +
-    (s ? '<div class="card"><b>Suivi pas à pas</b>' +
-         (events || '<div class="muted">Aucun événement.</div>') + '</div>' : '') +
-    (!data.store ? '<div class="card demo">🏪 Créez votre boutique maintenant pour être prêt ' +
-      'dès l\'activation. <button class="btn small ghost" ' +
-      'onclick="app.go(\'#/vendor/store\')">Créer ma boutique</button></div>' : '');
+  $('#app').innerHTML = vendorShell('commission',
+    '<div class="kpis">' +
+      '<div class="kpi"><div class="ic">💰</div><b>' + fcfa(s.due || 0) + '</b><span>À verser</span></div>' +
+      '<div class="kpi"><div class="ic">⏳</div><b>' + fcfa(s.declaree || 0) + '</b><span>Déclaré</span></div>' +
+      '<div class="kpi"><div class="ic">✅</div><b>' + fcfa(s.payee || 0) + '</b><span>Encaissé</span></div>' +
+      '<div class="kpi"><div class="ic">📊</div><b>' + (s.rate || 10) + ' %</b><span>Taux du marché</span></div>' +
+    '</div>' +
+    '<div class="card demo">💡 Sur chaque commande livrée, l\'application retient automatiquement <b>' + (s.rate || 10) + ' %</b> ' +
+      'pour le marché. Le client paie la totalité au vendeur ; le vendeur verse la part du marché au responsable ci-dessous.</div>' +
+    pay +
+    (hist ? '<div class="card"><h3 style="margin-top:0">📄 Détail des commissions</h3>' + hist + '</div>' :
+      '<div class="card empty">Aucune commission pour le moment : elle apparaît dès votre première commande livrée.</div>')
+  );
 }
+
+app.declarerCommission = async () => {
+  const err = $('#com-err'); if (err) err.style.display = 'none';
+  const name  = ($('#com-name').value || '').trim();
+  const phone = ($('#com-phone').value || '').trim();
+  const ref   = ($('#com-ref').value || '').trim();
+  if (name.length < 2){ if (err){ err.textContent = 'Indiquez le nom de la personne qui a versé.'; err.style.display='block'; } return; }
+  if (phone.replace(/\D/g, '').length < 6){ if (err){ err.textContent = 'Indiquez le numéro Orange Money utilisé.'; err.style.display='block'; } return; }
+  try{
+    await api('vendor/commission/declare', {method:'POST', body:{payer_name:name, payer_phone:phone, payment_ref:ref || null}});
+    toast('✓ Versement déclaré — le responsable va vérifier.');
+    vendorCom = await api('vendor/commission');
+    vendorCommissionPage();
+  }catch(e){
+    if (err){ err.textContent = e.message; err.style.display = 'block'; }
+  }
+};
 
 /* ---------- paiement Orange Money ---------- */
 
@@ -2174,40 +2190,13 @@ function payForm(s, disp){
 }
 
 app.copyOM = () => {
-  const om = (vendorSub && vendorSub.orange_money) || {};
+  const om = (vendorCom && vendorCom.orange_money) || {};
   const num = String(om.number || '').replace(/\D/g, '');
   if (!num) return toast('Numéro Orange Money non renseigné.');
   const fait = () => toast('✓ Numéro '+fmtPhone(num)+' copié.');
   if (navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(num).then(fait).catch(() => oldCopy(num, fait));
   } else oldCopy(num, fait);
-};
-
-app.declarerPaiement = async () => {
-  const err = $('#pay-err'); if (err) err.style.display = 'none';
-  const name  = ($('#pay-name').value || '').trim();
-  const phone = ($('#pay-phone').value || '').trim();
-  const ref   = ($('#pay-ref').value || '').trim();
-  if (name.length < 2){ if (err){ err.textContent = 'Indiquez le nom de la personne qui a payé.'; err.style.display='block'; } return; }
-  if (phone.replace(/\D/g, '').length < 6){ if (err){ err.textContent = 'Indiquez le numéro Orange Money utilisé.'; err.style.display='block'; } return; }
-  try{
-    await api('subscriptions/pay', {method:'POST', body:{
-      payer_name: name, payer_phone: phone, payment_ref: ref || null}});
-    toast('✓ Paiement déclaré — le responsable va vérifier.');
-    vendorSub = await api('subscriptions/mine');
-    vendorSubPage();
-  }catch(e){
-    if (err){ err.textContent = e.message; err.style.display = 'block'; }
-  }
-};
-
-app.demanderAbo = async () => {
-  try{
-    await api('subscriptions/request', {method:'POST', body:{}});
-    toast('✓ Demande envoyée au responsable du marché.');
-    vendorSub = await api('subscriptions/mine');
-    vendorSubPage();
-  }catch(e){ toast(e.message); }
 };
 
 /* ---------- interface du responsable du marché (admin) ---------- */
@@ -2232,7 +2221,8 @@ async function viewAdmin(parts){
   if (parts[0] === 'vendor')       return adminVendorForm();
   if (parts[0] === 'courier')      return adminCourierForm();
   if (parts[0] === 'profile')      return adminProfile();
-  if (parts[0] === 'abonnements')  return adminSubs();
+  if (parts[0] === 'abonnements')  return adminCommissions();
+  if (parts[0] === 'commissions')  return adminCommissions();
   if (parts[0] === 'sub')          return adminSubDetail(parts[1]);
   if (parts[0] === 'commandes')    return adminOrders();
   if (parts[0] === 'produits')     return adminProducts();
@@ -2257,14 +2247,13 @@ async function adminDashboard(){
     '<div class="kpi"><div class="ic">' + ic + '</div><b>' + val + '</b><span>' + label + '</span></div>';
 
   const alertes = [];
-  if (s.subs_to_verify) alertes.push('💰 <b>' + s.subs_to_verify + '</b> paiement(s) Orange Money à vérifier' +
-    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/abonnements\')">Vérifier</button>');
+  if (s.commissions_to_verify_count) alertes.push('💰 <b>' + fcfa(s.commissions_to_verify) + '</b> de commissions déclarées à vérifier (' +
+    s.commissions_to_verify_count + ' versement' + (s.commissions_to_verify_count > 1 ? 's' : '') + ')' +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/commissions\')">Vérifier</button>');
   if (s.reports_new) alertes.push('🚨 <b>' + s.reports_new + '</b> signalement(s) sans réponse' +
     '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/signalements\')">Voir</button>');
   if (s.orders_pending) alertes.push('📥 <b>' + s.orders_pending + '</b> commande(s) en attente chez les vendeurs' +
     '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/commandes\')">Contrôler</button>');
-  if (s.subs_soon) alertes.push('⏳ <b>' + s.subs_soon + '</b> abonnement(s) expirent dans moins de 7 jours' +
-    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/abonnements\')">Voir</button>');
   if (s.stock_low) alertes.push('⚠️ <b>' + s.stock_low + '</b> produit(s) presque en rupture');
   if (s.blocked) alertes.push('⛔ <b>' + s.blocked + '</b> compte(s) bloqué(s)');
 
@@ -2303,7 +2292,7 @@ async function adminDashboard(){
       '<button class="btn small" onclick="app.go(\'#/admin/vendor\')">➕ Vendeur</button>' +
       '<button class="btn small ghost" onclick="app.go(\'#/admin/personnes\')">👥 Personnes</button>' +
       '<button class="btn small ghost" onclick="app.go(\'#/admin/commandes\')">📦 Contrôle</button>' +
-      '<button class="btn small ghost" onclick="app.go(\'#/admin/abonnements\')">💳 Abonnements</button>' +
+      '<button class="btn small ghost" onclick="app.go(\'#/admin/commissions\')">💰 Commissions</button>' +
     '</div>' +
 
     '<div class="card"><h3 style="margin-top:0">👥 Le marché</h3>' +
@@ -2311,8 +2300,9 @@ async function adminDashboard(){
       '<div class="dash-row"><span>Vendeurs</span><span class="r">' + (s.vendors || 0) + '</span></div>' +
       '<div class="dash-row"><span>Livreurs</span><span class="r">' + (s.couriers || 0) + '</span></div>' +
       '<div class="dash-row"><span>Produits en vente</span><span class="r">' + (s.products || 0) + '</span></div>' +
-      '<div class="dash-row"><span>Abonnements actifs</span><span class="r">' + (s.subs_active || 0) + '</span></div>' +
-      '<div class="dash-row"><span>Abonnements encaissés</span><span class="r">' + fcfa(s.subs_revenue || 0) + '</span></div>' +
+      '<div class="dash-row"><span>Commissions à verser par les vendeurs</span><span class="r">' + fcfa(s.commissions_due || 0) + '</span></div>' +
+      '<div class="dash-row"><span>Commissions encaissées</span><span class="r">' + fcfa(s.commissions_revenue || 0) + '</span></div>' +
+      '<div class="dash-row"><span>Taux de commission</span><span class="r">' + (s.commission_rate || 10) + ' %</span></div>' +
     '</div>' +
 
     (tops ? '<div class="card"><h3 style="margin-top:0">🏆 Meilleures boutiques</h3>' + tops + '</div>' : '') +
@@ -2348,9 +2338,9 @@ async function adminUsers(){
     '<button class="btn small '+(stats.reports_new ? 'red' : 'gray')+'" style="width:100%;margin-bottom:10px" onclick="app.go(\'#/admin/signalements\')">🚨 Signalements' +
       (stats.reports_new ? ' ('+stats.reports_new+')' : '') + '</button>' +
     (stats.blocked ? '<div class="muted" style="margin:-4px 0 10px">⛔ '+stats.blocked+' compte(s) bloqué(s)</div>' : '') +
-    (stats.subs_to_verify
-      ? '<button class="btn red" style="width:100%;margin-bottom:10px" onclick="app.go(\'#/admin/abonnements\')">💰 ' +
-        stats.subs_to_verify+' paiement(s) Orange Money à vérifier</button>'
+    (stats.commissions_to_verify_count
+      ? '<button class="btn red" style="width:100%;margin-bottom:10px" onclick="app.go(\'#/admin/commissions\')">💰 ' +
+        fcfa(stats.commissions_to_verify)+' de commissions à vérifier</button>'
       : '') +
     '<div class="search"><input id="a-q" type="search" placeholder="🔍 Rechercher (nom, e-mail, téléphone)…"' +
     ' value="'+esc(adminList.search)+'" oninput="app.searchUsers(this.value)"></div>' +
@@ -2372,25 +2362,14 @@ function renderUserList(){
       : u.role === 'livreur' ? '🛵 Livreur · ' + (u.boutique && u.boutique.name || 'sans boutique')
       : '📦 ' + u.orders_count + ' commande(s)';
     let actions = '';
-    // État de l'abonnement (vendeurs uniquement)
-    const sub = estVendeur ? u.latest_subscription : null;
-    const subLine = estVendeur
-      ? (sub
-          ? '<div class="muted" style="margin-top:4px">💳 '+subPill(sub.statut) +
-            (sub.statut === 'actif' && sub.jours_restants != null
-              ? ' <span class="muted">'+sub.jours_restants+' j restant(s)</span>' : '') +
-            (sub.ends_at ? ' <span class="muted">· fin '+ddate(sub.ends_at)+'</span>' : '') +
-            '</div>'
-          : '<div class="muted" style="margin-top:4px">💳 '+subPill('en_attente')+'</div>')
-      : '';
 
     if (!estAdmin){
       if (u.blocked_at){
         actions = '<button class="btn small" onclick="app.unblockUser('+u.id+')">🔓 Débloquer</button>';
-        if (estVendeur) actions += '<button class="btn small ghost" onclick="app.go(\'#/admin/sub/'+(sub?sub.id:'')+'\')">💳 Abonnement</button>';
+        if (estVendeur) actions += '<button class="btn small ghost" onclick="app.go(\'#/admin/commissions\')">💰 Commissions</button>';
       } else {
         actions = (estVendeur
-          ? '<button class="btn small ghost" onclick="app.go(\'#/admin/sub/'+(sub?sub.id:'')+'\')">💳 Abonnement</button>' +
+          ? '<button class="btn small ghost" onclick="app.go(\'#/admin/commissions\')">💰 Commissions</button>' +
             '<button class="btn small gray" onclick="app.setRole('+u.id+',\'client\')">→ Repasser client</button>'
           : '<button class="btn small ghost" onclick="app.setRole('+u.id+',\'vendeur\')">→ Devenir vendeur</button>' +
             '<button class="btn small red" onclick="app.delUser('+u.id+')">🗑 Supprimer</button>'
@@ -2406,7 +2385,6 @@ function renderUserList(){
       '<div class="muted">'+esc(u.email)+(u.phone ? ' · 📞 '+esc(u.phone) : '')+'</div>' +
       '<div class="muted">'+detail+' · inscrite le '+ddate(u.created_at)+'</div>' +
       (u.blocked_at && u.blocked_reason ? '<div class="muted" style="color:var(--red)">Motif : '+esc(u.blocked_reason)+'</div>' : '') +
-      subLine +
       (actions ? '<div style="margin-top:8px">'+actions+'</div>' : '') +
     '</div>';
   }).join('');
@@ -2824,7 +2802,139 @@ app.resolveReport = async id => {
   }catch(e){ toast(e.message); }
 };
 
-/* ---------- abonnements vendeurs (côté responsable) ---------- */
+/* ---------- commissions du marché (côté responsable) ---------- */
+
+const adminComList = { items:[], page:1, last:1, filter:'tous', search:'', totals:{} };
+
+async function adminCommissions(){
+  if (!user || user.role !== 'admin') return location.hash = '#/home';
+  $('#app').innerHTML = '<div class="empty">Chargement des commissions…</div>';
+  let d;
+  try{
+    d = await api('admin/commissions?status=' + adminComList.filter);
+  }catch(e){
+    $('#app').innerHTML = '<h2>💰 Commissions du marché</h2>' +
+      '<div class="card err" style="display:block">'+esc(e.message)+'</div>';
+    return;
+  }
+  adminComList.items  = d.data || [];
+  adminComList.last   = d.last_page || 1;
+  adminComList.page   = 1;
+  adminComList.totals = d.totals || {};
+  const t = adminComList.totals;
+
+  $('#app').innerHTML =
+    '<h2>💰 Commissions du marché</h2>' +
+    '<div class="muted" style="margin:-6px 0 12px">Retenue automatique de '+(t.rate||10)+' % sur chaque commande livrée · ' +
+      'le vendeur reverse la part du marché par Orange Money</div>' +
+    '<div class="stats" style="grid-template-columns:repeat(2,1fr)">' +
+      '<div class="st" style="background:#FEF3C7"><b style="color:#B45309">'+fcfa(t.due||0)+'</b><span>à verser par les vendeurs</span></div>' +
+      '<div class="st" style="background:#DBEAFE"><b style="color:#1D4ED8">'+fcfa(t.declaree||0)+'</b><span>déclarées — à vérifier</span></div>' +
+      '<div class="st" style="background:#DCFCE7"><b style="color:#15803D">'+fcfa(t.payee||0)+'</b><span>encaissé</span></div>' +
+      '<div class="st" style="background:#F2F5F2"><b>'+(t.rate||10)+' %</b><span>taux du marché</span></div>' +
+    '</div>' +
+    '<div class="seg">' +
+      '<button class="'+(adminComList.filter==='tous'?'on':'')+'" onclick="app.comFilter(\'tous\')">Toutes</button>' +
+      '<button class="'+(adminComList.filter==='declaree'?'on':'')+'" onclick="app.comFilter(\'declaree\')">💰 À vérifier' +
+        (t.count_declaree ? ' ('+t.count_declaree+')' : '') + '</button>' +
+      '<button class="'+(adminComList.filter==='due'?'on':'')+'" onclick="app.comFilter(\'due\')">À verser</button>' +
+      '<button class="'+(adminComList.filter==='payee'?'on':'')+'" onclick="app.comFilter(\'payee\')">Encaissées</button>' +
+    '</div>' +
+    '<div class="search"><input id="c-q" type="search" placeholder="🔍 Rechercher un vendeur, une boutique, une commande…" value="'+esc(adminComList.search)+'" oninput="app.searchComs(this.value)"></div>' +
+    '<div id="c-list"></div>' +
+    '<button class="btn ghost" id="c-more" style="display:none" onclick="app.moreComs()">Charger plus</button>';
+  renderCommissions();
+}
+
+function renderCommissions(){
+  const list = adminComList.items.map(c => {
+    const u = c.user || {}, st = c.store || {}, o = c.order || {};
+
+    let actions = '';
+    if (c.status === 'declaree'){
+      actions = '<button class="btn small" onclick="app.validerCom('+c.id+')">✅ Versement reçu — encaisser</button>' +
+                '<button class="btn small red" onclick="app.rejeterCom('+c.id+')">❌ Non retrouvé</button>';
+    } else if (c.status === 'due'){
+      actions = '<div class="muted" style="margin-top:6px">⏳ En attente du versement Orange Money du vendeur.</div>';
+    } else {
+      actions = '<div class="muted" style="margin-top:6px">✅ Encaissée'+(c.paid_at ? ' le '+ddate(c.paid_at) : '')+'</div>';
+    }
+
+    const decl = (c.payer_name || c.payment_ref)
+      ? '<div style="margin-top:6px; padding:8px 10px; background:#F5F3FF; border-radius:10px">' +
+          '💰 Versé par <b>'+esc(c.payer_name || '—')+'</b>' +
+          (c.payer_phone ? ' · 📞 '+esc(c.payer_phone) : '') +
+          (c.payment_ref ? '<br>ID transaction : <b>'+esc(c.payment_ref)+'</b>' : '') +
+          (c.declared_at ? '<br><span class="muted">Déclaré le '+ddate(c.declared_at)+'</span>' : '') +
+          (c.note ? '<br><span class="muted" style="color:var(--red)">Motif du refus : '+esc(c.note)+'</span>' : '') +
+        '</div>'
+      : '';
+
+    return '<div class="card">' +
+      '<div class="iline"><b>'+fcfa(c.amount)+'</b>'+comPill(c.status)+'</div>' +
+      '<div class="muted">🏪 '+esc(st.name || 'Boutique')+' · '+esc(u.name || 'Vendeur') +
+        (u.phone ? ' · 📞 '+esc(u.phone) : '')+'</div>' +
+      '<div class="muted">📦 '+(o.reference ? esc(o.reference) : 'Commande #'+c.order_id) +
+        ' · vente '+fcfa(c.base)+' · '+c.rate+' %</div>' +
+      decl +
+      '<div style="margin-top:8px">'+actions+'</div>' +
+    '</div>';
+  }).join('');
+
+  $('#c-list').innerHTML = list ||
+    '<div class="card empty">Aucune commission dans cette catégorie.</div>';
+  const more = $('#c-more');
+  if (more) more.style.display = (adminComList.page < adminComList.last) ? 'block' : 'none';
+}
+
+app.comFilter = f => { adminComList.filter = f; adminComList.page = 1; adminCommissions(); };
+
+app.searchComs = s => {
+  clearTimeout(app._ct);
+  app._ct = setTimeout(async () => {
+    adminComList.search = s.trim(); adminComList.page = 1;
+    try{
+      const params = new URLSearchParams({status: adminComList.filter, page: 1});
+      if (adminComList.search) params.set('search', adminComList.search);
+      const d = await api('admin/commissions?' + params.toString());
+      adminComList.items = d.data || []; adminComList.last = d.last_page || 1;
+      renderCommissions();
+    }catch(e){ toast(e.message); }
+  }, 350);
+};
+
+app.moreComs = async () => {
+  try{
+    adminComList.page++;
+    const params = new URLSearchParams({status: adminComList.filter, page: adminComList.page});
+    if (adminComList.search) params.set('search', adminComList.search);
+    const d = await api('admin/commissions?' + params.toString());
+    adminComList.items = adminComList.items.concat(d.data || []);
+    adminComList.last = d.last_page || 1;
+    renderCommissions();
+  }catch(e){ toast(e.message); }
+};
+
+app.validerCom = async id => {
+  try{
+    await api('admin/commissions/' + id + '/validate', {method:'POST', body:{}});
+    toast('✓ Commission encaissée.');
+    adminCommissions();
+  }catch(e){ toast(e.message); }
+};
+
+app.rejeterCom = async id => {
+  const note = prompt('Pourquoi ce versement n\'est-il pas retrouvé ?\n(le vendeur verra ce message)',
+    'Versement non retrouvé sur le compte Orange Money. Vérifiez le numéro ou l\'ID de transaction.');
+  if (note === null) return;
+  try{
+    await api('admin/commissions/' + id + '/reject', {method:'POST', body:{note: note.trim() || null}});
+    toast('↩️ Versement rejeté — le vendeur peut déclarer à nouveau.');
+    adminCommissions();
+  }catch(e){ toast(e.message); }
+};
+
+/* ---------- abonnements vendeurs (côté responsable, ancien modèle) ---------- */
 
 const adminSubsList = { items:[], page:1, last:1, filter:'tous', search:'' };
 
@@ -3166,18 +3276,21 @@ async function adminProfile(){
       '<button class="btn" onclick="app.saveProfile()">✅ Enregistrer mes informations</button>' +
     '</div>' +
     '<div class="card" style="border:1.5px solid #FDBA74">' +
-      '<b>💳 Paiement Orange Money</b>' +
+      '<b>💳 Paiement Orange Money & commission</b>' +
       '<div class="muted" style="margin:2px 0 8px">Ce numéro s\'affiche automatiquement aux vendeurs ' +
-        'pour payer leur abonnement (10 000 FCFA / 30 jours).</div>' +
+        'pour verser la commission du marché.</div>' +
       '<label>Numéro Orange Money</label>' +
       '<input id="m-om-num" type="tel" inputmode="tel" value="'+esc(om.orange_money_number || '')+'" placeholder="Ex. 94 50 36 05">' +
       '<label>Nom du compte Orange Money</label>' +
       '<input id="m-om-name" value="'+esc(om.orange_money_name || '')+'" placeholder="Ex. Lassine Togo">' +
+      '<label>Taux de commission du marché (%)</label>' +
+      '<input id="m-rate" type="number" min="0" max="50" step="1" value="'+esc(om.commission_rate || '10')+'">' +
+      '<div class="muted" style="margin-top:2px">Retenu automatiquement sur chaque commande livrée. ' +
+        'Ex. : 10 % sur une vente de 20 000 FCFA = 2 000 FCFA pour le marché.</div>' +
       '<div class="err" id="m-om-err" style="display:none"></div>' +
-      '<button class="btn" onclick="app.saveOM()">💾 Enregistrer le numéro Orange Money</button>' +
-      '<div class="muted" style="margin-top:6px">💰 Quand un vendeur paie, vous recevez l\'argent directement ' +
-        'sur ce compte Orange Money. Le vendeur déclare ensuite son nom et son numéro dans son espace, ' +
-        'et vous retrouvez le paiement dans <b>Abos → À vérifier</b>.</div>' +
+      '<button class="btn" onclick="app.saveOM()">💾 Enregistrer</button>' +
+      '<div class="muted" style="margin-top:6px">💰 Les vendeurs versent cette commission sur ce compte Orange Money ; ' +
+        'vous validez chaque versement dans <b>💰 Commissions → À vérifier</b>.</div>' +
     '</div>' +
     '<div class="card demo">💡 Vous vous connecterez ensuite avec votre nouvelle adresse ' +
       'e-mail et votre nouveau mot de passe. Votre panneau reste identique.</div>';
@@ -3187,11 +3300,14 @@ app.saveOM = async () => {
   const err = $('#m-om-err'); err.style.display = 'none';
   const num  = ($('#m-om-num').value || '').trim();
   const name = ($('#m-om-name').value || '').trim();
+  const rate = ($('#m-rate').value || '').trim();
   if (num.replace(/\D/g, '').length < 6){ err.textContent = 'Le numéro Orange Money semble incorrect.'; err.style.display='block'; return; }
+  const rateNum = parseInt(rate, 10);
+  if (isNaN(rateNum) || rateNum < 0 || rateNum > 50){ err.textContent = 'Le taux doit être entre 0 et 50 %.'; err.style.display='block'; return; }
   try{
     await api('admin/settings', {method:'PUT', body:{
-      orange_money_number: num, orange_money_name: name || null}});
-    toast('✓ Numéro Orange Money enregistré — visible par les vendeurs.');
+      orange_money_number: num, orange_money_name: name || null, commission_rate: rateNum}});
+    toast('✓ Numéro Orange Money et taux de commission enregistrés.');
     adminProfile();
   }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
 };

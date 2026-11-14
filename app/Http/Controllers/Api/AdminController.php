@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Commission;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Report;
@@ -10,6 +11,7 @@ use App\Models\Setting;
 use App\Models\Store;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\CommissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -42,6 +44,11 @@ class AdminController extends Controller
             'subs_to_verify'=> Subscription::where('status', 'paiement_declare')->count(),
             'subs_active'   => Subscription::where('status', 'actif')->where('ends_at', '>', now())->count(),
             'subs_revenue'  => (int) Subscription::whereNotNull('activated_at')->sum('amount'),
+            'commissions_due'        => (int) Commission::where('status', 'due')->sum('amount'),
+            'commissions_to_verify'  => (int) Commission::where('status', 'declaree')->sum('amount'),
+            'commissions_to_verify_count' => Commission::where('status', 'declaree')->count(),
+            'commissions_paid'       => (int) Commission::where('status', 'payee')->sum('amount'),
+            'commission_rate'        => CommissionService::rate(),
             'reports_new'   => Report::where('status', 'nouveau')->count(),
             'blocked'       => User::whereNotNull('blocked_at')->count(),
         ]);
@@ -101,6 +108,11 @@ class AdminController extends Controller
                     ->whereBetween('ends_at', [now(), now()->addDays(7)])->count(),
                 'subs_to_verify' => Subscription::where('status', 'paiement_declare')->count(),
                 'subs_revenue'   => (int) Subscription::whereNotNull('activated_at')->sum('amount'),
+                'commissions_due'            => (int) Commission::where('status', 'due')->sum('amount'),
+                'commissions_to_verify'      => (int) Commission::where('status', 'declaree')->sum('amount'),
+                'commissions_to_verify_count'=> Commission::where('status', 'declaree')->count(),
+                'commissions_revenue'        => (int) Commission::where('status', 'payee')->sum('amount'),
+                'commission_rate'            => CommissionService::rate(),
                 'reports_new'    => Report::where('status', 'nouveau')->count(),
                 'blocked'        => User::whereNotNull('blocked_at')->count(),
                 'stock_low'      => Product::where('stock', '<=', 3)->count(),
@@ -180,28 +192,9 @@ class AdminController extends Controller
             ]);
         }
 
-        // Compte créé par le responsable : l'abonnement est activé
-        // immédiatement (30 jours), le paiement se règle en direct.
-        $subscription = $vendor->subscriptions()->create([
-            'amount'        => Subscription::AMOUNT,
-            'duration_days' => Subscription::DURATION,
-            'status'        => 'actif',
-            'starts_at'     => now(),
-            'ends_at'       => now()->addDays(Subscription::DURATION),
-            'activated_at'  => now(),
-            'activated_by'  => $admin->id,
-            'note'          => 'Compte créé par le responsable du marché',
-        ]);
-
-        $subscription->events()->create([
-            'user_id' => $admin->id,
-            'type'    => 'activation',
-            'note'    => 'Compte vendeur créé par le responsable — abonnement activé',
-        ]);
-
+        // Modèle commission : aucun abonnement à activer à la création.
         return response()->json([
-            'user'         => $vendor->load(['store:id,name', 'latestSubscription']),
-            'subscription' => $subscription,
+            'user' => $vendor->load(['store:id,name']),
         ], 201);
     }
 
@@ -266,26 +259,8 @@ class AdminController extends Controller
 
         $user->update(['role' => $data['role']]);
 
-        if ($data['role'] === 'vendeur') {
-            $encours = $user->subscriptions()
-                ->whereIn('status', ['en_attente', 'actif'])
-                ->exists();
-
-            if (! $encours) {
-                $subscription = $user->subscriptions()->create([
-                    'amount'        => Subscription::AMOUNT,
-                    'duration_days' => Subscription::DURATION,
-                    'status'        => 'en_attente',
-                ]);
-
-                $subscription->events()->create([
-                    'user_id' => $admin->id,
-                    'type'    => 'demande',
-                    'note'    => 'Rôle vendeur accordé par le responsable — abonnement à activer',
-                ]);
-            }
-        } else {
-            // Repassé client : on désactive ses abonnements en cours.
+        if ($data['role'] !== 'vendeur') {
+            // Repassé client : on désactive ses anciens abonnements en cours.
             foreach ($user->subscriptions()->whereIn('status', ['en_attente', 'actif'])->get() as $subscription) {
                 $subscription->update([
                     'status'         => 'desactive',
@@ -585,6 +560,104 @@ class AdminController extends Controller
         return response()->json(['settings' => Setting::allKnown()]);
     }
 
+    /* ------------------------------------------------ commissions du marché */
+
+    /**
+     * Commissions du marché.
+     * ?status=tous|due|declaree|payee&search=&page=
+     */
+    public function commissions(Request $request)
+    {
+        $this->admin($request);
+
+        $status = (string) $request->query('status', 'tous');
+        $search = trim((string) $request->query('search', ''));
+
+        $query = Commission::query()->with([
+            'user:id,name,email,phone',
+            'store:id,name',
+            'order:id,reference,delivered_at',
+        ]);
+
+        if (in_array($status, ['due', 'declaree', 'payee'], true)) {
+            $query->where('status', $status);
+        }
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('user', fn ($u) => $u
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%"))
+                    ->orWhereHas('store', fn ($s) => $s->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('order', fn ($o) => $o->where('reference', 'like', "%{$search}%"));
+            });
+        }
+
+        $page = $query->orderByDesc('id')->paginate(20);
+
+        return response()->json([
+            'totals' => [
+                'rate'            => CommissionService::rate(),
+                'due'             => (int) Commission::where('status', 'due')->sum('amount'),
+                'declaree'        => (int) Commission::where('status', 'declaree')->sum('amount'),
+                'payee'           => (int) Commission::where('status', 'payee')->sum('amount'),
+                'count_due'       => Commission::where('status', 'due')->count(),
+                'count_declaree'  => Commission::where('status', 'declaree')->count(),
+                'count_payee'     => Commission::where('status', 'payee')->count(),
+            ],
+            'data'      => $page->items(),
+            'page'      => $page->currentPage(),
+            'last_page' => $page->lastPage(),
+            'total'     => $page->total(),
+        ]);
+    }
+
+    /** Le responsable confirme avoir reçu le versement Orange Money. */
+    public function validateCommission(Request $request, Commission $commission)
+    {
+        $admin = $this->admin($request);
+
+        abort_if($commission->status === 'payee', 422, 'Cette commission est déjà encaissée.');
+
+        $commission->update([
+            'status'       => 'payee',
+            'paid_at'      => now(),
+            'confirmed_by' => $admin->id,
+            'note'         => null,
+        ]);
+
+        return response()->json([
+            'message'    => 'Commission encaissée.',
+            'commission' => $commission->fresh(['user:id,name', 'store:id,name', 'order:id,reference']),
+        ]);
+    }
+
+    /** Le versement n'a pas été retrouvé : la commission repasse « à verser ». */
+    public function rejectCommission(Request $request, Commission $commission)
+    {
+        $this->admin($request);
+
+        $data = $request->validate([
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        abort_if($commission->status === 'payee', 422, 'Impossible de rejeter une commission déjà encaissée.');
+
+        $commission->update([
+            'status'      => 'due',
+            'payer_name'  => null,
+            'payer_phone' => null,
+            'payment_ref' => null,
+            'declared_at' => null,
+            'note'        => $data['note'] ?? null,
+        ]);
+
+        return response()->json([
+            'message'    => 'Versement rejeté — le vendeur peut déclarer à nouveau.',
+            'commission' => $commission->fresh(),
+        ]);
+    }
+
     /**
      * body : { orange_money_number?, orange_money_name? }
      */
@@ -595,10 +668,14 @@ class AdminController extends Controller
         $data = $request->validate([
             'orange_money_number' => ['nullable', 'string', 'max:30'],
             'orange_money_name'   => ['nullable', 'string', 'max:100'],
+            'commission_rate'     => ['nullable', 'integer', 'min:0', 'max:50'],
         ]);
 
         Setting::put('orange_money_number', $data['orange_money_number'] ?? null);
         Setting::put('orange_money_name', $data['orange_money_name'] ?? null);
+        if (array_key_exists('commission_rate', $data) && $data['commission_rate'] !== null) {
+            Setting::put('commission_rate', (string) $data['commission_rate']);
+        }
 
         return response()->json([
             'message'  => 'Réglages enregistrés.',
@@ -666,9 +743,16 @@ class AdminController extends Controller
 
         $order->update($attrs);
 
+        // Commande livrée : commission du marché calculée automatiquement.
+        if ($data['status'] === 'livree') {
+            CommissionService::forOrder($order);
+        }
+
         // Commande annulée : les produits retournent dans le stock du vendeur.
         if ($data['status'] === 'annulee' && $ancien !== 'annulee') {
             $order->restoreStock();
+            // Les commissions non encore versées de cette commande disparaissent.
+            Commission::where('order_id', $order->id)->where('status', 'due')->delete();
         }
 
         $labels = [

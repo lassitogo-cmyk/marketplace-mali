@@ -16,6 +16,7 @@ class Setting extends Model
     public const DEFAULTS = [
         'orange_money_number' => null,
         'orange_money_name'   => null,
+        'commission_rate'     => '10',
     ];
 
     public static function get(string $key, ?string $default = null): ?string

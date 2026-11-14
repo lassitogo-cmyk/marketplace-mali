@@ -68,6 +68,11 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
     Route::post('/vendor/image', [VendorController::class, 'uploadImage']);
     // Vendeur : tableau de bord de la boutique
     Route::get('/vendor/dashboard', [VendorController::class, 'dashboard']);
+
+    // Vendeur : commission du marché (10 % des ventes livrées)
+    Route::get('/vendor/commission', [VendorController::class, 'commission']);
+    Route::post('/vendor/commission/declare', [VendorController::class, 'declareCommission']);
+
     Route::get('/vendor/orders', [VendorController::class, 'orders']);
     Route::put('/vendor/orders/{order}/status', [VendorController::class, 'updateOrderStatus']);
     Route::post('/vendor/orders/{order}/payment/confirm', [VendorController::class, 'confirmPayment']);
@@ -109,6 +114,11 @@ Route::middleware(['auth:sanctum', EnsureNotBlocked::class])->group(function () 
         Route::get('/reports', [AdminController::class, 'reports']);
         Route::post('/reports/{report}/reply', [AdminController::class, 'replyReport']);
         Route::put('/reports/{report}/resolve', [AdminController::class, 'resolveReport']);
+
+        // Commissions du marché (10 % des ventes livrées)
+        Route::get('/commissions', [AdminController::class, 'commissions']);
+        Route::post('/commissions/{commission}/validate', [AdminController::class, 'validateCommission']);
+        Route::post('/commissions/{commission}/reject', [AdminController::class, 'rejectCommission']);
 
         // Abonnements vendeurs : activation, désactivation, suivi
         Route::get('/subscriptions', [AdminController::class, 'subscriptions']);

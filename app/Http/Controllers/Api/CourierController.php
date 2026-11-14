@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Services\CommissionService;
 use App\Services\Notifier;
 use Illuminate\Http\Request;
 
@@ -94,6 +95,9 @@ class CourierController extends Controller
             'status'       => 'livree',
             'delivered_at' => now(),
         ]);
+
+        // Commission du marché (10 % par défaut) sur cette commande livrée.
+        CommissionService::forOrder($order);
 
         $this->notifier->to(
             $order->user,

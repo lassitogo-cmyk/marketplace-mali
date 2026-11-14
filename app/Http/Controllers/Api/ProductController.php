@@ -15,11 +15,9 @@ class ProductController extends Controller
     {
         $query = Product::query()
             ->where('is_active', true)
-            // Seules les boutiques dont l'abonnement vendeur est actif
-            // apparaissent sur le marché.
-            ->whereHas('store.user.subscriptions', function ($q) {
-                $q->where('status', 'actif')->where('ends_at', '>', now());
-            })
+            // Modèle commission : toutes les boutiques sont visibles,
+            // sauf celles d'un vendeur bloqué.
+            ->whereHas('store.user', fn ($q) => $q->whereNull('blocked_at'))
             ->with(['store:id,name,slug', 'category:id,name,slug', 'images'])
             ->orderByDesc('id');
 
@@ -47,14 +45,7 @@ class ProductController extends Controller
     public function show(Product $product)
     {
         abort_unless($product->is_active, 404);
-
-        abort_unless(
-            $product->store->user->subscriptions()
-                ->where('status', 'actif')
-                ->where('ends_at', '>', now())
-                ->exists(),
-            404
-        );
+        abort_if($product->store->user?->blocked_at !== null, 404);
 
         $product->load(['store:id,name,slug,description,city,phone', 'category:id,name,slug', 'images']);
 
