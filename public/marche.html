@@ -738,12 +738,26 @@ app.go = h => { location.hash = h; };
 
 /* ---------- partage du marché (WhatsApp, TikTok, messages…) ---------- */
 
-function marketURL(){ return location.origin + '/marche.html'; }
+/* Adresse officielle : elle fonctionne même quand aucun ordinateur n'est allumé. */
+const OFFICIAL_URL = 'https://marketplace-mali.onrender.com/marche.html';
+
+/* Vrai si la page vient de l'ordinateur (localhost, Wi-Fi local, fichier). */
+function isLocalHost(){
+  const h = location.hostname;
+  return location.protocol === 'file:' ||
+         h === 'localhost' || h === '127.0.0.1' || h === '[::1]' ||
+         /^10\./.test(h) || /^192\.168\./.test(h) ||
+         /^172\.(1[6-9]|2[0-9]|3[01])\./.test(h) || /\.local$/.test(h);
+}
+
+/* On partage TOUJOURS le lien officiel : un lien local ne marche pas
+   dès que l'ordinateur est éteint. */
+function marketURL(){ return isLocalHost() ? OFFICIAL_URL : location.origin + '/marche.html'; }
 
 app.share = async () => {
   const url  = marketURL();
-  const text = '🛍️ Marketplace Mali — la marketplace des vendeurs de Bamako ! ' +
-               'Connecte-toi au même Wi-Fi puis ouvre :';
+  const text = '🛍️ Marketplace Mali — le marché de Bamako, livré chez vous ! ' +
+               'Ouvrez ce lien et installez l\'application :';
   /* iPhone : ouvre la feuille de partage native (WhatsApp, TikTok, Messages…) */
   if (navigator.share){
     try{ await navigator.share({title:'Marketplace Mali', text, url}); return; }
@@ -3576,6 +3590,19 @@ app.openBrowser = () => {
 
 /* Bandeau d'installation : visible sans être connecté, sur l'accueil. */
 function installBanner(){
+  // Page servie par l'ordinateur : l'icône installée depuis ici ne marchera
+  // plus dès que l'ordinateur est éteint.
+  if (isLocalHost()){
+    return '<div class="card banner-attn" style="border:1.5px solid #B91C1C">' +
+      '<b>⚠️ Version locale de l\'ordinateur</b>' +
+      '<div class="muted" style="margin:6px 0">Vous ouvrez la page depuis votre ordinateur (' +
+        esc(location.hostname) + '). Une icône installée depuis cette adresse ' +
+        '<b>ne fonctionnera plus quand l\'ordinateur sera éteint</b>.</div>' +
+      '<a class="btn" href="' + OFFICIAL_URL + '">🌐 Ouvrir le lien officiel</a>' +
+      '<div class="muted" style="margin-top:8px">Installez l\'application depuis cette page : ' +
+        'elle marchera partout, sans ordinateur allumé.</div>' +
+    '</div>';
+  }
   if (Install.standalone()) return '';
   if (localStorage.getItem('mm_install_hide') === '1') return '';
 
