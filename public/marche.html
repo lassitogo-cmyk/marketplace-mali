@@ -48,6 +48,10 @@
   .btn.small{display:inline-block; width:auto; padding:9px 14px; font-size:14px; margin:2px}
   .btn.gray{background:#fff; color:var(--muted); border:1.5px solid var(--line)}
   .btn.red{background:#fff; color:var(--red); border:1.5px solid var(--red)}
+  a.btn{text-decoration:none; text-align:center; box-sizing:border-box}
+  .callrow{display:flex; gap:8px; margin-top:8px}
+  .callrow .btn{flex:1; margin:0}
+  .ph-num{font-size:19px; font-weight:800; letter-spacing:.5px}
 
   label{display:block; font-size:13px; font-weight:600; color:var(--muted); margin:12px 0 5px}
   input,textarea,select{width:100%; padding:12px; border-radius:10px; border:1.5px solid var(--line);
@@ -387,6 +391,33 @@ function ddate(iso){ const d = new Date(iso);
 
 function pill(status){ const s = STATUS[status] || {label:status, color:'#555', bg:'#EEE'};
   return '<span class="pill" style="color:'+s.color+';background:'+s.bg+'">'+s.label+'</span>'; }
+
+/* Numéro utilisable par tel: et WhatsApp (Mali : 8 chiffres → +223). */
+function phoneIntl(p){
+  let d = String(p == null ? '' : p).replace(/[^0-9+]/g, '');
+  if (!d) return '';
+  if (d.startsWith('+')) d = d.slice(1);
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.length === 8) d = '223' + d;
+  return d;
+}
+
+/* Boutons « Appeler » / « WhatsApp » : le livreur joint le client en un geste. */
+function callButtons(phone, qui){
+  const n = phoneIntl(phone);
+  if (!n) return '<div class="muted" style="margin-top:6px">📞 Aucun numéro : contactez le vendeur.</div>';
+  return '<div class="callrow">' +
+    '<a class="btn small" href="tel:+' + n + '">📞 Appeler ' + (qui || '') + '</a>' +
+    '<a class="btn small ghost" href="https://wa.me/' + n + '" target="_blank" rel="noopener">💬 WhatsApp</a>' +
+  '</div>';
+}
+
+/* Lien vers l'adresse de livraison dans Google Maps. */
+function mapsLink(address){
+  if (!address) return '';
+  return '<a class="btn small gray" style="margin-left:0" href="https://www.google.com/maps/search/?api=1&query=' +
+    encodeURIComponent(address) + '" target="_blank" rel="noopener">🗺️ Ouvrir dans Maps</a>';
+}
 
 function emojiFor(cat){ const map = {'Électronique':'📱','Electronique':'📱','Mode':'👗','Maison':'🏠'};
   return map[cat] || '🛍️'; }
@@ -1218,7 +1249,7 @@ async function viewOrder(id){
       '<div style="font-size:14px; line-height:1.6">📍 '+esc(o.address)+'<br>📞 '+esc(o.phone) +
       (o.note ? '<br>📝 '+esc(o.note) : '') + '</div>' +
       (o.courier ? '<div style="margin-top:6px">🛵 Livreur : <b>'+esc(o.courier.name)+'</b>' +
-        (o.courier.phone ? ' · 📞 '+esc(o.courier.phone) : '') + '</div>' : '') +
+        (o.courier.phone ? ' · 📞 <a href="tel:+'+phoneIntl(o.courier.phone)+'">'+esc(o.courier.phone)+'</a>' : '') + '</div>' : '') +
       (o.status === 'en_attente'
         ? '<button class="btn red" style="margin-top:10px" onclick="app.cancelOrder('+o.id+')">🛑 Annuler ma commande</button>'
         : '') +
@@ -1345,6 +1376,7 @@ async function viewCourier(){
 
   const list = (d.data || []).map(o => {
     const mine = o.courier_id === user.id;
+    const tel = String(o.phone || (o.user && o.user.phone) || '').trim();
     let act = '';
     if (o.status === 'confirmee')
       act = '<button class="btn small" onclick="app.takeOrder('+o.id+')">🛵 Accepter la course</button>';
@@ -1353,10 +1385,18 @@ async function viewCourier(){
 
     return '<div class="card">' +
       '<div class="iline"><b>'+esc(o.reference)+'</b>'+pill(o.status)+'</div>' +
-      '<div class="muted">👤 '+esc(o.user && o.user.name || 'Client')+
-        (o.user && o.user.phone ? ' · 📞 '+esc(o.user.phone) : '')+'</div>' +
-      '<div class="muted">📍 '+esc(o.address)+'</div>' +
-      '<div class="iline" style="border:0"><span>'+payPill(o.payment_status)+'</span><b>'+fcfa(o.total)+'</b></div>' +
+      '<div class="muted">👤 Client : <b>'+esc(o.user && o.user.name || 'Client')+'</b></div>' +
+      (tel
+        ? '<div style="margin-top:8px"><div class="muted">📞 Téléphone du client</div>' +
+            '<div class="ph-num">'+esc(tel)+'</div></div>'
+        : '<div class="muted" style="margin-top:6px">📞 Aucun numéro — demandez-le au vendeur.</div>') +
+      callButtons(tel, 'le client') +
+      '<div style="margin-top:10px"><div class="muted">📍 Adresse de livraison</div>' +
+        '<div style="font-size:15px;font-weight:600">'+esc(o.address)+'</div>' +
+        (o.address ? '<div style="margin-top:6px">'+mapsLink(o.address)+'</div>' : '') +
+      '</div>' +
+      (o.note ? '<div class="muted" style="margin-top:8px">📝 '+esc(o.note)+'</div>' : '') +
+      '<div class="iline" style="margin-top:10px"><span>'+payPill(o.payment_status)+'</span><b>'+fcfa(o.total)+'</b></div>' +
       (o.items || []).map(it => '<div class="muted">• '+esc(it.product_name)+' ×'+it.qty+
         (it.store ? ' — '+esc(it.store.name) : '')+'</div>').join('') +
       (act ? '<div style="margin-top:8px">'+act+'</div>' : '') +
@@ -1658,6 +1698,8 @@ async function vendorOrders(){
   const list = (data.data || []).map(o => {
     const mine = (o.items || []);
     const part = mine.reduce((s,it)=>s+it.subtotal, 0);
+    const enCours = ['en_attente','confirmee','en_livraison'].indexOf(o.status) >= 0;
+    const telClient = String(o.phone || (o.user && o.user.phone) || '').trim();
     let actions = '';
     if (o.status === 'en_attente')
       actions = '<button class="btn small" onclick="app.setStatus('+o.id+',\'confirmee\')">✅ Confirmer</button>' +
@@ -1673,8 +1715,11 @@ async function vendorOrders(){
       '<div class="iline"><b>'+esc(o.reference)+'</b><span>'+pill(o.status)+' '+payPill(o.payment_status)+'</span></div>' +
       (o.payment_status === 'declare' && o.payment_ref
         ? '<div class="muted">💰 ID transaction : <b>'+esc(o.payment_ref)+'</b></div>' : '') +
-      '<div class="muted">👤 '+esc(o.user && o.user.name || 'Client')+
-        (o.user && o.user.phone ? ' · '+esc(o.user.phone) : '')+' · '+ddate(o.created_at)+'</div>' +
+      '<div class="muted">👤 <b>'+esc(o.user && o.user.name || 'Client')+'</b> · '+ddate(o.created_at)+'</div>' +
+      '<div class="muted" style="margin-top:4px">📞 <b>'+esc(telClient || '—')+'</b></div>' +
+      '<div class="muted">📍 '+esc(o.address || '—')+'</div>' +
+      (enCours && telClient ? callButtons(telClient, 'le client') : '') +
+      (enCours && o.address ? '<div style="margin-top:6px">'+mapsLink(o.address)+'</div>' : '') +
       (o.courier ? '<div class="muted">🛵 Livreur : <b>'+esc(o.courier.name)+'</b>'+
         (o.courier.phone ? ' · 📞 '+esc(o.courier.phone) : '')+
         (o.status === 'en_livraison' ? ' · <span style="color:var(--green)">en route</span>' : '')+'</div>' : '') +
