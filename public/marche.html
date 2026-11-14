@@ -3360,6 +3360,63 @@ const Install = {
   android: () => /Android/i.test(navigator.userAgent),
   inApp: () => /(WhatsApp|FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|TikTok|Snapchat|Telegram|LinkedIn|Twitter|MicroMessenger|GSA\/)/i.test(navigator.userAgent),
   browser: function(){ return this.ios() ? 'Safari' : this.android() ? 'Chrome' : 'votre navigateur'; },
+  appLabel: function(){
+    const ua = navigator.userAgent;
+    if (/Instagram/i.test(ua)) return 'Instagram';
+    if (/WhatsApp/i.test(ua)) return 'WhatsApp';
+    if (/(FBAN|FBAV|FB_IAB|FBIOS|Messenger)/i.test(ua)) return 'Facebook';
+    if (/TikTok/i.test(ua)) return 'TikTok';
+    if (/Snapchat/i.test(ua)) return 'Snapchat';
+    if (/Telegram/i.test(ua)) return 'Telegram';
+    if (/LinkedIn/i.test(ua)) return 'LinkedIn';
+    if (/Twitter/i.test(ua)) return 'X (Twitter)';
+    if (/MicroMessenger/i.test(ua)) return 'WeChat';
+    if (/GSA\//i.test(ua)) return 'Google';
+    return 'cette application';
+  },
+  openHint: function(){
+    if (this.ios()){
+      return 'Sur iPhone : touchez l\'icône <b>Safari</b> (boussole) en haut à droite, ' +
+        'ou <b>Partager ⬆️ → « Ouvrir dans Safari »</b>.';
+    }
+    return 'Sur Android : menu <b>⋮</b> ou <b>⋯</b> en haut à droite → ' +
+      '<b>« Ouvrir dans le navigateur »</b>.';
+  },
+};
+
+/* Ouvre la page dans Safari/Chrome depuis le navigateur intégré
+   de WhatsApp, Facebook, Instagram… (où l'installation est bloquée). */
+app.openBrowser = () => {
+  const url = location.origin + '/marche.html';
+  let target = '';
+
+  if (Install.android()){
+    target = 'intent://' + location.host + '/marche.html#Intent;scheme=https;' +
+             'package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+  } else if (Install.ios()){
+    // Astuce iOS : ouvre le lien dans la vraie application Safari.
+    target = 'x-safari-' + url;
+  } else {
+    app.copyLink();
+    return;
+  }
+
+  try{
+    const a = document.createElement('a');
+    a.href = target;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }catch(e){
+    try{ location.href = target; }catch(e2){}
+  }
+
+  setTimeout(() => {
+    if (!document.hidden){
+      toast('Si ' + Install.browser() + ' ne s\'ouvre pas, utilisez « 📋 Copier le lien » et collez-le dans ' + Install.browser() + '.');
+    }
+  }, 2000);
 };
 
 /* Bandeau d'installation : visible sans être connecté, sur l'accueil. */
@@ -3369,12 +3426,12 @@ function installBanner(){
 
   if (Install.inApp()){
     return '<div class="card banner-attn">' +
-      '<b>📲 Pour installer l\'application</b>' +
-      '<div class="muted" style="margin:4px 0 8px">Vous êtes dans le navigateur d\'une application ' +
-        '(WhatsApp, Facebook, Instagram…). L\'installation sur l\'écran d\'accueil n\'y est pas possible.</div>' +
-      '<div class="muted">Touchez <b>⋯</b> ou <b>⬆️ Partager</b> → <b>Ouvrir dans ' + Install.browser() + '</b>, ' +
-        'puis revenez sur cette page.</div>' +
+      '<b>📲 Installez l\'application</b>' +
+      '<div class="muted" style="margin:4px 0 8px">Vous êtes dans le navigateur de <b>' + Install.appLabel() + '</b> : ' +
+        'il ne permet pas d\'installer l\'application sur l\'écran d\'accueil.</div>' +
+      '<button class="btn" onclick="app.openBrowser()">🌐 Ouvrir dans ' + Install.browser() + '</button>' +
       '<button class="btn ghost" style="margin-top:8px" onclick="app.copyLink()">📋 Copier le lien du marché</button>' +
+      '<div class="muted" style="margin-top:8px">' + Install.openHint() + '</div>' +
     '</div>';
   }
 
@@ -3413,14 +3470,19 @@ function installCard(){
   if (Install.inApp()){
     return '<div class="card banner-attn">' +
       '<b>📲 Installer l\'application</b>' +
-      '<div class="muted" style="margin:6px 0">⚠️ Vous êtes dans le navigateur intégré d\'une application ' +
-        '(WhatsApp, Facebook, Instagram…). L\'installation n\'y est pas possible.</div>' +
+      '<div class="muted" style="margin:6px 0">⚠️ Vous êtes dans le navigateur de <b>' + Install.appLabel() + '</b>. ' +
+        'L\'installation sur l\'écran d\'accueil y est impossible : ouvrez d\'abord la page dans ' +
+        Install.browser() + '.</div>' +
+      '<button class="btn" onclick="app.openBrowser()">🌐 Ouvrir dans ' + Install.browser() + '</button>' +
+      '<button class="btn ghost" style="margin-top:8px" onclick="app.copyLink()">📋 Copier le lien du marché</button>' +
+      '<div style="margin-top:10px"><b>Si le navigateur ne s\'ouvre pas :</b></div>' +
       '<ol class="om-steps">' +
-        '<li>Touchez <b>⋯</b> (ou <b>⬆️ Partager</b>) en haut ou en bas de l\'écran.</li>' +
-        '<li>Choisissez <b>« Ouvrir dans ' + Install.browser() + ' »</b>.</li>' +
-        '<li>Sur la page ouverte, touchez <b>« 📲 Installer sur mon téléphone »</b> ci-dessous.</li>' +
+        '<li>' + Install.openHint() + '</li>' +
+        '<li>Sur la page ouverte dans ' + Install.browser() + ' : ' +
+          (Install.ios()
+            ? '<b>Partager ⬆️</b> → <b>« Sur l\'écran d\'accueil »</b> → <b>« Ajouter »</b>.'
+            : 'menu <b>⋮</b> → <b>« Installer l\'application »</b>.') + '</li>' +
       '</ol>' +
-      '<button class="btn ghost" onclick="app.copyLink()">📋 Copier le lien du marché</button>' +
     '</div>';
   }
 
@@ -3518,7 +3580,7 @@ app.installPWA = async () => {
     return;
   }
   if (Install.inApp()){
-    toast('Ouvrez d\'abord le site dans ' + Install.browser() + ' : ⋯ → « Ouvrir dans le navigateur ».');
+    app.openBrowser();
     return;
   }
   if (deferredPrompt){
