@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Marketplace">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -764,6 +765,7 @@ async function viewHome(){
           '<button class="ghost" onclick="app.share()">📤 Partager</button>' +
         '</div>' +
       '</div>' +
+      installBanner() +
       '<div class="trust">' +
         '<div><b>🚚</b>Livraison<br>Bamako</div>' +
         '<div><b>✅</b>Vendeurs<br>vérifiés</div>' +
@@ -3294,6 +3296,7 @@ async function adminProfile(){
       '<div class="muted" style="margin-top:6px">💰 Les vendeurs versent cette commission sur ce compte Orange Money ; ' +
         'vous validez chaque versement dans <b>💰 Commissions → À vérifier</b>.</div>' +
     '</div>' +
+    installCard() +
     '<div class="card demo">💡 Vous vous connecterez ensuite avec votre nouvelle adresse ' +
       'e-mail et votre nouveau mot de passe. Votre panneau reste identique.</div>';
 }
@@ -3343,8 +3346,106 @@ window.addEventListener('beforeinstallprompt', e => {
   deferredPrompt = e;
 });
 window.addEventListener('appinstalled', () => {
+  try{ localStorage.setItem('mm_install_hide', '1'); }catch(e){}
   toast('✓ Marketplace Mali installée sur cet appareil.');
 });
+
+/* ---------- installation sur l'écran d'accueil ---------- */
+
+const Install = {
+  standalone: () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) ||
+                    window.navigator.standalone === true,
+  ios: () => /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+  android: () => /Android/i.test(navigator.userAgent),
+  inApp: () => /(WhatsApp|FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|TikTok|Snapchat|Telegram|LinkedIn|Twitter|MicroMessenger|GSA\/)/i.test(navigator.userAgent),
+  browser: function(){ return this.ios() ? 'Safari' : this.android() ? 'Chrome' : 'votre navigateur'; },
+};
+
+/* Bandeau d'installation : visible sans être connecté, sur l'accueil. */
+function installBanner(){
+  if (Install.standalone()) return '';
+  if (localStorage.getItem('mm_install_hide') === '1') return '';
+
+  if (Install.inApp()){
+    return '<div class="card banner-attn">' +
+      '<b>📲 Pour installer l\'application</b>' +
+      '<div class="muted" style="margin:4px 0 8px">Vous êtes dans le navigateur d\'une application ' +
+        '(WhatsApp, Facebook, Instagram…). L\'installation sur l\'écran d\'accueil n\'y est pas possible.</div>' +
+      '<div class="muted">Touchez <b>⋯</b> ou <b>⬆️ Partager</b> → <b>Ouvrir dans ' + Install.browser() + '</b>, ' +
+        'puis revenez sur cette page.</div>' +
+      '<button class="btn ghost" style="margin-top:8px" onclick="app.copyLink()">📋 Copier le lien du marché</button>' +
+    '</div>';
+  }
+
+  const hint = deferredPrompt
+    ? '<div class="muted" style="margin-top:6px">Touchez <b>Installer</b> : la fenêtre d\'installation s\'ouvre.</div>'
+    : Install.ios()
+      ? '<div class="muted" style="margin-top:6px">📱 <b>iPhone :</b> bouton <b>Partager ⬆️</b> → ' +
+        '<b>« Sur l\'écran d\'accueil »</b> → <b>« Ajouter »</b>.</div>'
+      : '<div class="muted" style="margin-top:6px">🤖 <b>Android :</b> menu <b>⋮</b> → ' +
+        '<b>« Installer l\'application »</b> (ou « Ajouter à l\'écran d\'accueil »).</div>';
+
+  return '<div class="card banner-attn">' +
+    '<div style="display:flex; align-items:center; gap:10px">' +
+      '<div style="font-size:26px">📲</div>' +
+      '<div style="flex:1"><b>Installez l\'application</b>' +
+        '<div class="muted">Accès direct depuis l\'écran d\'accueil, comme une vraie application.</div></div>' +
+      '<button class="btn small" style="width:auto" onclick="app.installPWA()">Installer</button>' +
+      '<button class="btn small gray" style="width:auto" onclick="app.hideInstall()" aria-label="Masquer">✕</button>' +
+    '</div>' +
+    hint +
+  '</div>';
+}
+
+app.hideInstall = () => {
+  try{ localStorage.setItem('mm_install_hide', '1'); }catch(e){}
+  router();
+};
+
+/* Carte d'installation détaillée (page Compte). */
+function installCard(){
+  if (Install.standalone()){
+    return '<div class="card banner-ok">✅ <b>Application installée</b><br>' +
+      'Vous utilisez Marketplace Mali en plein écran depuis votre écran d\'accueil.</div>';
+  }
+
+  if (Install.inApp()){
+    return '<div class="card banner-attn">' +
+      '<b>📲 Installer l\'application</b>' +
+      '<div class="muted" style="margin:6px 0">⚠️ Vous êtes dans le navigateur intégré d\'une application ' +
+        '(WhatsApp, Facebook, Instagram…). L\'installation n\'y est pas possible.</div>' +
+      '<ol class="om-steps">' +
+        '<li>Touchez <b>⋯</b> (ou <b>⬆️ Partager</b>) en haut ou en bas de l\'écran.</li>' +
+        '<li>Choisissez <b>« Ouvrir dans ' + Install.browser() + ' »</b>.</li>' +
+        '<li>Sur la page ouverte, touchez <b>« 📲 Installer sur mon téléphone »</b> ci-dessous.</li>' +
+      '</ol>' +
+      '<button class="btn ghost" onclick="app.copyLink()">📋 Copier le lien du marché</button>' +
+    '</div>';
+  }
+
+  const steps = Install.ios()
+    ? '<ol class="om-steps">' +
+        '<li>Ouvrez cette page dans <b>Safari</b>.</li>' +
+        '<li>Touchez le bouton <b>Partager ⬆️</b> en bas de l\'écran.</li>' +
+        '<li>Faites défiler et touchez <b>« Sur l\'écran d\'accueil »</b>.</li>' +
+        '<li>Touchez <b>« Ajouter »</b> : l\'icône apparaît sur votre écran d\'accueil.</li>' +
+      '</ol>'
+    : '<ol class="om-steps">' +
+        '<li>Ouvrez cette page dans <b>Chrome</b>.</li>' +
+        '<li>Touchez le menu <b>⋮</b> en haut à droite.</li>' +
+        '<li>Touchez <b>« Installer l\'application »</b> (ou « Ajouter à l\'écran d\'accueil »).</li>' +
+        '<li>Confirmez : l\'icône apparaît sur votre écran d\'accueil.</li>' +
+      '</ol>';
+
+  return '<div class="card">' +
+    '<b>📲 Installer l\'application</b>' +
+    '<div class="muted" style="margin:4px 0 8px">Ajoutez Marketplace Mali à votre écran d\'accueil : ' +
+      'accès direct, plein écran, comme une vraie application.</div>' +
+    steps +
+    '<button class="btn ghost" onclick="app.installPWA()">📲 Installer sur mon téléphone</button>' +
+  '</div>';
+}
 
 async function viewAccount(){
   if (!user) return location.hash = '#/login';
@@ -3370,14 +3471,7 @@ async function viewAccount(){
       '<div class="err" id="ac-perr" style="display:none"></div>' +
       '<button class="btn ghost" onclick="app.changePassword()">🔐 Changer le mot de passe</button>' +
     '</div>' +
-    '<div class="card">' +
-      '<b>📱 Installer l\'application</b>' +
-      '<div class="muted" style="margin:4px 0 8px">Ajoutez Marketplace Mali à votre écran d\'accueil : ' +
-        'accès direct, plein écran, comme une vraie application.</div>' +
-      '<button class="btn ghost" onclick="app.installPWA()">📲 Installer sur mon téléphone</button>' +
-      '<div class="muted" style="margin-top:6px">Sur iPhone : bouton Partager → « Sur l\'écran d\'accueil ». ' +
-        'Sur Android : menu ⋮ → « Installer l\'application ».</div>' +
-    '</div>' +
+    installCard() +
     '<div class="card">' +
       '<b>🔔 Alertes sur cet appareil</b>' +
       '<div class="muted" style="margin:4px 0 8px">Recevez les nouvelles commandes, livraisons et messages du responsable.</div>' +
@@ -3419,6 +3513,14 @@ app.changePassword = async () => {
 };
 
 app.installPWA = async () => {
+  if (Install.standalone()){
+    toast('✓ L\'application est déjà installée sur cet appareil.');
+    return;
+  }
+  if (Install.inApp()){
+    toast('Ouvrez d\'abord le site dans ' + Install.browser() + ' : ⋯ → « Ouvrir dans le navigateur ».');
+    return;
+  }
   if (deferredPrompt){
     try{
       deferredPrompt.prompt();
@@ -3428,7 +3530,13 @@ app.installPWA = async () => {
       return;
     }catch(e){}
   }
-  toast('Menu du navigateur : Partager → « Sur l\'écran d\'accueil » (iPhone) ou ⋮ → « Installer » (Android).');
+  if (Install.ios()){
+    toast('Safari : bouton Partager ⬆️ (en bas) → « Sur l\'écran d\'accueil » → « Ajouter ».');
+  } else if (Install.android()){
+    toast('Chrome : menu ⋮ (en haut à droite) → « Installer l\'application ».');
+  } else {
+    toast('Menu du navigateur → « Installer » ou « Ajouter à l\'écran d\'accueil ».');
+  }
 };
 
 /* ---------- démarrage ---------- */

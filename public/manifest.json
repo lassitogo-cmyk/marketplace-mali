@@ -3,10 +3,13 @@
   "short_name": "Marché Mali",
   "description": "La marketplace des vendeurs de Bamako — acheter et vendre depuis son téléphone.",
   "lang": "fr",
+  "id": "/marche.html",
   "start_url": "/marche.html",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
+  "prefer_related_applications": false,
   "background_color": "#F2F5F2",
   "theme_color": "#0E7C3A",
   "icons": [
