@@ -85,6 +85,13 @@
   .prod .add{margin-top:6px; background:var(--green); color:#fff; border:0; border-radius:9px;
              padding:9px; font-size:14px; font-weight:700}
 
+  /* chargement instantané : cartes grises animées */
+  .prod.sk .vis{background:linear-gradient(100deg,#E9F1E9 30%,#F7FAF7 50%,#E9F1E9 70%);
+                background-size:220% 100%; animation:skshine 1.2s linear infinite}
+  .prod.sk .ln{height:10px; border-radius:6px; background:#EDF3ED; margin:0 0 8px}
+  .prod.sk .ln.s{width:65%}
+  @keyframes skshine{to{background-position:-220% 0}}
+
   /* bandeau d'accueil "pub" */
   .hero{position:relative; overflow:hidden; border-radius:20px; padding:20px 18px 18px; color:#fff;
         background:linear-gradient(135deg,#0A5F2C 0%,#0E7C3A 45%,#22A34E 100%);
@@ -747,39 +754,123 @@ app.authClick = () => {
 
 const catalog = { items:[], page:1, last:1, search:'', cat:0, byId:{} };
 
-async function viewHome(){
-  $('#app').innerHTML = '<div class="empty">Chargement du catalogue…</div>';
-  try{
-    await loadProducts(true);
-    await ensureCategories();
-    let stores = [];
-    try{ const d = await api('stores'); stores = (d.data || []).slice(0, 10); }catch(e){}
+/* Dernier catalogue gardé sur le téléphone : l'accueil s'affiche
+   immédiatement, puis se met à jour en arrière-plan. */
+const HOME_CACHE = 'mm_home_v1';
 
-    $('#app').innerHTML =
-      '<div class="hero">' +
-        '<span class="promo">🇲🇱 Livraison à Bamako</span>' +
-        '<h2>Le marché de Bamako,<br>dans votre poche</h2>' +
-        '<div class="hsub">Vêtements · Chaussures · Électronique · Maison</div>' +
-        '<div class="hact">' +
-          '<button onclick="document.getElementById(\'q\').scrollIntoView({behavior:\'smooth\'})">Voir les produits</button>' +
-          '<button class="ghost" onclick="app.share()">📤 Partager</button>' +
-        '</div>' +
+function readHomeCache(){
+  try{
+    const d = JSON.parse(localStorage.getItem(HOME_CACHE) || 'null');
+    return (d && Array.isArray(d.products)) ? d : null;
+  }catch(e){ return null; }
+}
+
+function writeHomeCache(stores){
+  try{
+    localStorage.setItem(HOME_CACHE, JSON.stringify({
+      products: catalog.items.slice(0, 30),
+      cats: viewHome.cats || [],
+      stores: stores || [],
+    }));
+  }catch(e){}
+}
+
+function homeSkeleton(){
+  let h = '';
+  for (let i = 0; i < 6; i++){
+    h += '<div class="prod sk"><div class="vis"></div><div class="body">' +
+      '<div class="ln"></div><div class="ln s"></div>' +
+      '<div class="ln" style="width:45%"></div></div></div>';
+  }
+  return h;
+}
+
+function homeShell(){
+  return '<div class="hero">' +
+      '<span class="promo">🇲🇱 Livraison à Bamako</span>' +
+      '<h2>Le marché de Bamako,<br>dans votre poche</h2>' +
+      '<div class="hsub">Vêtements · Chaussures · Électronique · Maison</div>' +
+      '<div class="hact">' +
+        '<button onclick="document.getElementById(\'q\').scrollIntoView({behavior:\'smooth\'})">Voir les produits</button>' +
+        '<button class="ghost" onclick="app.share()">📤 Partager</button>' +
       '</div>' +
-      installBanner() +
-      '<div class="trust">' +
-        '<div><b>🚚</b>Livraison<br>Bamako</div>' +
-        '<div><b>✅</b>Vendeurs<br>vérifiés</div>' +
-        '<div><b>📱</b>Commande<br>facile</div>' +
-      '</div>' +
-      (stores.length ? storesHTML(stores) : '') +
-      '<div class="search"><input id="q" type="search" placeholder="🔍 Rechercher un produit…"' +
-      ' value="'+esc(catalog.search)+'" oninput="app.search(this.value)"></div>' +
-      '<div class="chips" id="chips"></div>' +
-      '<div class="sec-title"><h3>🛍️ Produits du marché</h3><span id="pcount"></span></div>' +
-      '<div class="grid" id="grid"></div>' +
-      '<button class="btn ghost" id="more" style="display:none;margin-top:12px" onclick="app.more()">Charger plus de produits</button>';
-    renderChips(); renderGrid();
-  }catch(e){ $('#app').innerHTML = '<div class="card err" style="display:block">'+esc(e.message)+'</div>'; }
+    '</div>' +
+    installBanner() +
+    '<div class="trust">' +
+      '<div><b>🚚</b>Livraison<br>Bamako</div>' +
+      '<div><b>✅</b>Vendeurs<br>vérifiés</div>' +
+      '<div><b>📱</b>Commande<br>facile</div>' +
+    '</div>' +
+    '<div id="storesBox"></div>' +
+    '<div class="search"><input id="q" type="search" placeholder="🔍 Rechercher un produit…"' +
+    ' value="'+esc(catalog.search)+'" oninput="app.search(this.value)"></div>' +
+    '<div class="chips" id="chips"></div>' +
+    '<div class="sec-title"><h3>🛍️ Produits du marché</h3><span id="pcount"></span></div>' +
+    '<div class="grid" id="grid"></div>' +
+    '<button class="btn ghost" id="more" style="display:none;margin-top:12px" onclick="app.more()">Charger plus de produits</button>';
+}
+
+async function viewHome(){
+  const cache = readHomeCache();
+  catalog.page = 1;
+  catalog.items = [];
+  catalog.byId = {};
+
+  // 1. Affichage immédiat : contenu enregistré, sinon cartes de chargement.
+  $('#app').innerHTML = homeShell();
+  if (cache){
+    catalog.items = cache.products || [];
+    catalog.items.forEach(p => catalog.byId[p.id] = p);
+    catalog.last = 1;
+    if (cache.cats && cache.cats.length) viewHome.cats = cache.cats;
+    if (cache.stores && cache.stores.length) $('#storesBox').innerHTML = storesHTML(cache.stores);
+    renderChips();
+    renderGrid();
+  } else {
+    $('#grid').innerHTML = homeSkeleton();
+  }
+
+  // 2. Mise à jour réseau en parallèle (produits + catégories + boutiques).
+  const params = new URLSearchParams();
+  params.set('page', 1);
+  if (catalog.search) params.set('search', catalog.search);
+  if (catalog.cat)    params.set('category', catalog.cat);
+
+  const [prod, cats, stores] = await Promise.allSettled([
+    api('products?' + params.toString()),
+    api('categories'),
+    api('stores'),
+  ]);
+
+  if (prod.status !== 'fulfilled'){
+    if (!cache){
+      $('#grid').innerHTML = '<div class="card err" style="display:block;grid-column:1/-1">' +
+        esc((prod.reason && prod.reason.message) || 'Impossible de charger le marché.') + '</div>';
+    }
+    return;
+  }
+
+  const data = prod.value || {};
+  catalog.items = data.data || [];
+  catalog.last = data.last_page || 1;
+  catalog.byId = {};
+  catalog.items.forEach(p => catalog.byId[p.id] = p);
+
+  if (cats.status === 'fulfilled') viewHome.cats = cats.value;
+
+  const list = stores.status === 'fulfilled'
+    ? ((stores.value.data || []).slice(0, 10))
+    : ((cache && cache.stores) || []);
+
+  $('#storesBox').innerHTML = list.length ? storesHTML(list) : '';
+
+  renderChips();
+  renderGrid();
+
+  const more = $('#more');
+  if (more) more.style.display = data.next_page_url ? 'block' : 'none';
+
+  if (!catalog.search && !catalog.cat) writeHomeCache(list);
 }
 
 function storesHTML(stores){

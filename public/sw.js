@@ -2,7 +2,7 @@
    Permet l'installation sur l'écran d'accueil et affiche l'application
    même quand la connexion est momentanément coupée.
    Les appels /api/ ne sont jamais mis en cache. */
-const CACHE = 'marketplace-mali-v4';
+const CACHE = 'marketplace-mali-v5';
 const SHELL = ['/marche.html', '/manifest.json', '/logo.png', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', event => {
@@ -27,6 +27,25 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/media/')) return;
+
+  // Application installée : on sert la page enregistrée tout de suite,
+  // puis on la met à jour en arrière-plan pour la prochaine ouverture.
+  if (request.mode === 'navigate' || url.pathname === '/marche.html'){
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      const hit = await cache.match('/marche.html');
+      const net = fetch(request)
+        .then(response => {
+          if (response && response.ok && response.type === 'basic') {
+            cache.put('/marche.html', response.clone());
+          }
+          return response;
+        })
+        .catch(() => hit);
+      return hit || net;
+    })());
+    return;
+  }
 
   // Réseau d'abord : l'application reste toujours à jour.
   event.respondWith(
