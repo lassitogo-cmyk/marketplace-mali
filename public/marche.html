@@ -802,6 +802,11 @@ function homeShell(){
       '<div><b>📱</b>Commande<br>facile</div>' +
     '</div>' +
     '<div id="storesBox"></div>' +
+    '<div class="card banner-attn" id="wakeNote" style="display:none">' +
+      '⏳ <b>Le serveur se réveille…</b>' +
+      '<div class="muted" style="margin-top:4px">La première ouverture de la journée peut prendre ' +
+      '30 à 50 secondes. Merci de patienter, le catalogue arrive.</div>' +
+    '</div>' +
     '<div class="search"><input id="q" type="search" placeholder="🔍 Rechercher un produit…"' +
     ' value="'+esc(catalog.search)+'" oninput="app.search(this.value)"></div>' +
     '<div class="chips" id="chips"></div>' +
@@ -836,11 +841,25 @@ async function viewHome(){
   if (catalog.search) params.set('search', catalog.search);
   if (catalog.cat)    params.set('category', catalog.cat);
 
-  const [prod, cats, stores] = await Promise.allSettled([
-    api('products?' + params.toString()),
-    api('categories'),
-    api('stores'),
-  ]);
+  // Render gratuit s'endort : si la réponse tarde, on explique pourquoi
+  // au lieu de laisser le client devant un écran figé.
+  const wake = setTimeout(() => {
+    const n = $('#wakeNote');
+    if (n) n.style.display = 'block';
+  }, 4000);
+
+  let prod, cats, stores;
+  try{
+    [prod, cats, stores] = await Promise.allSettled([
+      api('products?' + params.toString()),
+      api('categories'),
+      api('stores'),
+    ]);
+  } finally {
+    clearTimeout(wake);
+    const n = $('#wakeNote');
+    if (n) n.style.display = 'none';
+  }
 
   if (prod.status !== 'fulfilled'){
     if (!cache){
