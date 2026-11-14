@@ -2,8 +2,8 @@
    Permet l'installation sur l'écran d'accueil et affiche l'application
    même quand la connexion est momentanément coupée.
    Les appels /api/ ne sont jamais mis en cache. */
-const CACHE = 'marketplace-mali-v1';
-const SHELL = ['/marche.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'marketplace-mali-v2';
+const SHELL = ['/marche.html', '/manifest.json', '/logo.png', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
