@@ -464,9 +464,11 @@ function colorHex(n){
 function prodCard(p){
   const ph = photosOf(p);
   const colors = p.colors || [];
-  const badge = colors.length
-    ? '<span class="badge">🎨 '+colors.length+' couleurs</span>'
-    : (p.stock > 0 && p.stock <= 3 ? '<span class="badge">Reste '+p.stock+'</span>' : '');
+  const badge = !(p.stock > 0)
+    ? '<span class="badge" style="background:#B91C1C">Rupture</span>'
+    : (colors.length
+        ? '<span class="badge">🎨 '+colors.length+' couleurs</span>'
+        : (p.stock <= 3 ? '<span class="badge">Reste '+p.stock+'</span>' : ''));
   return '<div class="prod" onclick="app.go(\'#/product/'+p.id+'\')">' +
     '<div class="vis">' +
       (ph.length ? '<img src="'+esc(imgURL(ph[0], 400))+'" alt="'+esc(p.name)+'" loading="lazy">'
@@ -1022,6 +1024,10 @@ app.setCat = async id => { catalog.cat = id; catalog.page = 1;
 app.more  = async () => { catalog.page++; await loadProducts(false); renderGrid(); };
 app.quickAdd = id => { const p = catalog.byId[id];
   if (!p) return;
+  if (!(p.stock > 0)){
+    toast('😔 Rupture de stock — '+p.name+' n\'est pas disponible pour le moment.');
+    return;
+  }
   // Produit à couleurs / tailles : le client choisit sur la fiche avant d'ajouter.
   if ((p.colors && p.colors.length) || (p.sizes && p.sizes.length)){
     return app.go('#/product/' + id);
@@ -1101,8 +1107,8 @@ async function viewProduct(id){
           '<b id="q" style="min-width:26px; text-align:center; font-size:17px">1</b>' +
           '<button onclick="app.step(1)">+</button></span></span>' +
       '</div>' +
-      '<button class="btn" '+(p.stock>0?'':'disabled style="opacity:.45"')+
-        ' onclick="app.addVariant()">🛒 Ajouter au panier</button>' +
+      '<button class="btn"'+(p.stock>0?'':' style="opacity:.55"')+
+        ' onclick="app.addVariant()">'+(p.stock>0?'🛒 Ajouter au panier':'😔 Rupture de stock')+'</button>' +
     '</div>' +
     '<div class="card"><h3 style="margin-top:0">Description</h3>' +
       '<p style="line-height:1.6; font-size:15px; margin:0">'+esc(p.description || 'Pas de description.')+'</p></div>';
@@ -1148,6 +1154,10 @@ app.galScroll = el => {
 
 app.addVariant = () => {
   const p = app._p; if (!p) return;
+  if (!(p.stock > 0)){
+    toast('😔 Rupture de stock — ce produit ne peut pas être commandé pour le moment.');
+    return;
+  }
   const colors = p.colors || [], sizes = p.sizes || [];
   if (sizes.length && !app._size){ toast('Choisissez d\'abord une taille.'); return; }
   if (colors.length && !app._color){ toast('Choisissez d\'abord une couleur.'); return; }
