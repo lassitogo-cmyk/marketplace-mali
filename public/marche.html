@@ -436,6 +436,14 @@ function photosOf(p){
   return (p && p.image) ? [p.image] : [];
 }
 
+/* Photo à la bonne taille : le serveur renvoie une version allégée (?w=).
+   400 px pour les listes, 900 px pour la fiche — indispensable en 3G. */
+function imgURL(u, w){
+  if (!u) return '';
+  if (!/^\/media\/\d+$/.test(u)) return u;
+  return u + '?w=' + w;
+}
+
 /* Couleur approximative pour les pastilles (rouge, bleu, noir…). */
 const COLOR_HEX = {
   noir:'#111827', blanc:'#FFFFFF', rouge:'#DC2626', bleu:'#2563EB', vert:'#16A34A',
@@ -461,7 +469,7 @@ function prodCard(p){
     : (p.stock > 0 && p.stock <= 3 ? '<span class="badge">Reste '+p.stock+'</span>' : '');
   return '<div class="prod" onclick="app.go(\'#/product/'+p.id+'\')">' +
     '<div class="vis">' +
-      (ph.length ? '<img src="'+esc(ph[0])+'" alt="'+esc(p.name)+'" loading="lazy">'
+      (ph.length ? '<img src="'+esc(imgURL(ph[0], 400))+'" alt="'+esc(p.name)+'" loading="lazy">'
                  : emojiFor(p.category && p.category.name)) +
       badge +
     '</div>' +
@@ -1040,7 +1048,8 @@ async function viewProduct(id){
   const gallery = ph.length
     ? '<div class="gal">' +
         '<div class="gal-track" id="gal" onscroll="app.galScroll(this)">' +
-          ph.map((src,i)=>'<div class="gal-slide"><img src="'+esc(src)+'" alt="'+esc(p.name)+' — photo '+(i+1)+'"></div>').join('') +
+          ph.map((src,i)=>'<div class="gal-slide"><img src="'+esc(imgURL(src, 900))+'" alt="'+esc(p.name)+' — photo '+(i+1)+'"' +
+            (i===0 ? ' fetchpriority="high"' : ' loading="lazy"') + '></div>').join('') +
         '</div>' +
         (ph.length > 1
           ? '<button class="gal-nav l" onclick="app.galGo(-1)" aria-label="Photo précédente">‹</button>' +
@@ -1052,7 +1061,7 @@ async function viewProduct(id){
       (ph.length > 1
         ? '<div class="thumbs" id="thumbs">' +
             ph.map((src,i)=>'<button class="'+(i===0?'on':'')+'" onclick="app.galTo('+i+')">' +
-              '<img src="'+esc(src)+'" alt="Miniature '+(i+1)+'"></button>').join('') +
+              '<img src="'+esc(imgURL(src, 150))+'" alt="Miniature '+(i+1)+'" loading="lazy"></button>').join('') +
           '</div>'
         : '')
     : '<div class="big-vis">'+emojiFor(p.category && p.category.name)+'</div>';
@@ -1974,7 +1983,7 @@ async function vendorProductForm(id){
 /* ---------- photo produit (compression + envoi) ---------- */
 
 /* Compresse la photo dans le téléphone avant l'envoi :
-   max 1200 px, JPEG qualité 85 % — indispensable sur connexion lente. */
+   max 1000 px, JPEG qualité 75 % — indispensable sur connexion lente. */
 function compressImage(file){
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1983,7 +1992,7 @@ function compressImage(file){
       const img = new Image();
       img.onerror = () => reject(new Error('Photo illisible.'));
       img.onload = () => {
-        const MAX = 1200;
+        const MAX = 1000;
         let w = img.width, h = img.height;
         if (w > MAX || h > MAX){
           const k = Math.min(MAX/w, MAX/h); w = Math.round(w*k); h = Math.round(h*k);
@@ -1992,7 +2001,7 @@ function compressImage(file){
         c.width = w; c.height = h;
         c.getContext('2d').drawImage(img, 0, 0, w, h);
         c.toBlob(b => b ? resolve(b)
-          : reject(new Error('Compression impossible.')), 'image/jpeg', 0.85);
+          : reject(new Error('Compression impossible.')), 'image/jpeg', 0.75);
       };
       img.src = reader.result;
     };

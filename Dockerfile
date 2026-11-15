@@ -9,10 +9,12 @@ RUN echo "ServerTokens Prod" > /etc/apache2/conf-available/zz-discret.conf \
     && echo "TraceEnable Off" >> /etc/apache2/conf-available/zz-discret.conf \
     && a2enconf zz-discret
 
-# Extensions PHP nécessaires (PostgreSQL en ligne, zip, texte, cache).
+# Extensions PHP nécessaires (PostgreSQL en ligne, zip, texte, cache, images).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpq-dev libzip-dev libonig-dev libxml2-dev zip unzip git curl \
-    && docker-php-ext-install pdo pdo_pgsql pgsql mbstring zip bcmath opcache \
+        libpq-dev libzip-dev libonig-dev libxml2-dev libpng-dev libjpeg62-turbo-dev libwebp-dev \
+        zip unzip git curl \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
+    && docker-php-ext-install pdo pdo_pgsql pgsql mbstring zip bcmath opcache gd \
     && a2enmod rewrite headers \
     && rm -rf /var/lib/apt/lists/*
 
