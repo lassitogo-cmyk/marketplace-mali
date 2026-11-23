@@ -62,6 +62,10 @@
 
   .search{display:flex; gap:8px; margin-bottom:10px}
   .search input{flex:1}
+  .search.top{position:sticky; top:0; z-index:20; background:var(--bg);
+              padding:8px 0 6px; margin-bottom:4px}
+  .search.top input{height:46px; font-size:16px; border:2px solid var(--green);
+                    background:#fff; box-shadow:0 3px 12px rgba(14,124,58,.10)}
   .chips{display:flex; gap:8px; overflow-x:auto; padding:2px 0 10px; scrollbar-width:none}
   .chips::-webkit-scrollbar{display:none}
   .chip{flex:0 0 auto; background:#fff; border:1.5px solid var(--line); color:var(--muted);
@@ -472,8 +476,10 @@ function prodCard(p, dansBoutique){
         ? '<span class="badge">🎨 '+colors.length+' couleurs</span>'
         : (p.stock <= 3 ? '<span class="badge">Reste '+p.stock+'</span>' : ''));
   const sid = p.store_id || (p.store && p.store.id) || 0;
-  const dest = dansBoutique || !sid ? '#/product/'+p.id : '#/store/'+sid;
-  return '<div class="prod" onclick="app.go(\''+dest+'\')">' +
+  const click = (dansBoutique || !sid)
+    ? 'app.go(\'#/product/'+p.id+'\')'
+    : 'app.openBoutique('+p.id+','+sid+')';
+  return '<div class="prod" onclick="'+click+'">' +
     '<div class="vis">' +
       (ph.length ? '<img src="'+esc(imgURL(ph[0], 400))+'" alt="'+esc(p.name)+'" loading="lazy">'
                  : emojiFor(p.category && p.category.name)) +
@@ -750,6 +756,19 @@ function router(){
 
 app.go = h => { location.hash = h; };
 
+/* Toucher un produit sur l'accueil : connexion client obligatoire,
+   puis on entre directement dans la boutique du vendeur. */
+app.openBoutique = (id, sid) => {
+  if (!user || user.role !== 'client'){
+    savedHash = '#/store/' + sid;
+    toast(user ? 'Déconnectez-vous pour entrer dans la boutique en client.'
+               : '🔑 Connectez-vous d\'abord pour entrer dans la boutique.');
+    location.hash = '#/login';
+    return;
+  }
+  location.hash = '#/store/' + sid;
+};
+
 /* ---------- partage du marché (WhatsApp, TikTok, messages…) ---------- */
 
 /* Adresse officielle : elle fonctionne même quand aucun ordinateur n'est allumé. */
@@ -845,29 +864,17 @@ function homeSkeleton(){
 }
 
 function homeShell(){
-  return '<div class="hero">' +
-      '<span class="promo">🇲🇱 Livraison à Bamako</span>' +
-      '<h2>Le marché de Bamako,<br>dans votre poche</h2>' +
-      '<div class="hsub">Vêtements · Chaussures · Électronique · Maison</div>' +
-      '<div class="hact">' +
-        '<button onclick="document.getElementById(\'q\').scrollIntoView({behavior:\'smooth\'})">Voir les produits</button>' +
-        '<button class="ghost" onclick="app.share()">📤 Partager</button>' +
-      '</div>' +
-    '</div>' +
+  /* Accueil = produits uniquement : la recherche est la première chose
+     visible, juste au-dessus du catalogue. */
+  return '<div class="search top"><input id="q" type="search" autocomplete="off"' +
+      ' placeholder="🔍 Chercher un produit…"' +
+      ' value="'+esc(catalog.search)+'" oninput="app.search(this.value)"></div>' +
     installBanner() +
-    '<div class="trust">' +
-      '<div><b>🚚</b>Livraison<br>Bamako</div>' +
-      '<div><b>✅</b>Vendeurs<br>vérifiés</div>' +
-      '<div><b>📱</b>Commande<br>facile</div>' +
-    '</div>' +
-    '<div id="storesBox"></div>' +
     '<div class="card banner-attn" id="wakeNote" style="display:none">' +
       '⏳ <b>Le serveur se réveille…</b>' +
       '<div class="muted" style="margin-top:4px">La première ouverture de la journée peut prendre ' +
       '30 à 50 secondes. Merci de patienter, le catalogue arrive.</div>' +
     '</div>' +
-    '<div class="search"><input id="q" type="search" placeholder="🔍 Rechercher un produit…"' +
-    ' value="'+esc(catalog.search)+'" oninput="app.search(this.value)"></div>' +
     '<div class="chips" id="chips"></div>' +
     '<div class="sec-title"><h3>🛍️ Produits du marché</h3><span id="pcount"></span></div>' +
     '<div class="grid" id="grid"></div>' +
@@ -887,14 +894,13 @@ async function viewHome(){
     catalog.items.forEach(p => catalog.byId[p.id] = p);
     catalog.last = 1;
     if (cache.cats && cache.cats.length) viewHome.cats = cache.cats;
-    if (cache.stores && cache.stores.length) $('#storesBox').innerHTML = storesHTML(cache.stores);
     renderChips();
     renderGrid();
   } else {
     $('#grid').innerHTML = homeSkeleton();
   }
 
-  // 2. Mise à jour réseau en parallèle (produits + catégories + boutiques).
+  // 2. Mise à jour réseau en parallèle (produits + catégories).
   const params = new URLSearchParams();
   params.set('page', 1);
   if (catalog.search) params.set('search', catalog.search);
@@ -907,12 +913,11 @@ async function viewHome(){
     if (n) n.style.display = 'block';
   }, 4000);
 
-  let prod, cats, stores;
+  let prod, cats;
   try{
-    [prod, cats, stores] = await Promise.allSettled([
+    [prod, cats] = await Promise.allSettled([
       api('products?' + params.toString()),
       api('categories'),
-      api('stores'),
     ]);
   } finally {
     clearTimeout(wake);
@@ -936,19 +941,13 @@ async function viewHome(){
 
   if (cats.status === 'fulfilled') viewHome.cats = cats.value;
 
-  const list = stores.status === 'fulfilled'
-    ? ((stores.value.data || []).slice(0, 10))
-    : ((cache && cache.stores) || []);
-
-  $('#storesBox').innerHTML = list.length ? storesHTML(list) : '';
-
   renderChips();
   renderGrid();
 
   const more = $('#more');
   if (more) more.style.display = data.next_page_url ? 'block' : 'none';
 
-  if (!catalog.search && !catalog.cat) writeHomeCache(list);
+  if (!catalog.search && !catalog.cat) writeHomeCache([]);
 }
 
 function storesHTML(stores){
@@ -1006,27 +1005,40 @@ async function ensureCategories(){
 }
 
 function renderChips(){
+  const box = $('#chips'); if (!box) return;   // l'écran a pu changer entre-temps
   const cats = viewHome.cats || [];
   let html = '<button class="chip '+(catalog.cat===0?'on':'')+'" onclick="app.setCat(0)">Tout</button>';
   html += cats.map(c =>
     '<button class="chip '+(catalog.cat===c.id?'on':'')+'" onclick="app.setCat('+c.id+')">'+
     emojiFor(c.name)+' '+esc(c.name)+'</button>').join('');
-  $('#chips').innerHTML = html;
+  box.innerHTML = html;
 }
 
-function renderGrid(){
-  if (!catalog.items.length){
-    $('#grid').innerHTML = '<div class="empty" style="grid-column:1/-1">Aucun produit ne correspond.</div>'; return;
+function renderGrid(list){
+  const box = $('#grid'); if (!box) return;   // navigation en cours
+  const items = list || catalog.items;
+  if (!items.length){
+    box.innerHTML = '<div class="empty" style="grid-column:1/-1">Aucun produit ne correspond.</div>'; return;
   }
-  $('#grid').innerHTML = catalog.items.map(prodCard).join('');
-  const c = $('#pcount'); if (c) c.textContent = catalog.items.length + ' affiché(s)';
+  box.innerHTML = items.map(p => prodCard(p)).join('');
+  const c = $('#pcount'); if (c) c.textContent = items.length + ' affiché(s)';
 }
 
 app.search = s => {
+  catalog.search = s.trim();
+  /* Réponse immédiate avec les produits déjà chargés, puis confirmation
+     par l'API (150 ms) pour trouver aussi les produits des autres pages. */
+  if (!catalog.search) renderGrid();
+  else{
+    const q = catalog.search.toLowerCase();
+    renderGrid(catalog.items.filter(p =>
+      String(p.name || '').toLowerCase().includes(q) ||
+      String((p.category && p.category.name) || '').toLowerCase().includes(q)));
+  }
   clearTimeout(app._t);
   app._t = setTimeout(async () => {
-    catalog.search = s.trim(); catalog.page = 1; await loadProducts(true); renderGrid();
-  }, 350);
+    catalog.page = 1; await loadProducts(true); renderGrid();
+  }, 150);
 };
 app.setCat = async id => { catalog.cat = id; catalog.page = 1;
   await loadProducts(true); renderChips(); renderGrid(); };
@@ -1550,6 +1562,7 @@ app.login = async () => {
     location.hash = (user.role === 'admin') ? '#/admin'
                   : (user.role === 'vendeur') ? '#/vendor'
                   : (user.role === 'livreur') ? '#/courier'
+                  : (savedHash && savedHash.indexOf('#/store/') === 0) ? savedHash
                   : reprise ? '#/cart'
                   : (savedHash || '#/home');
     savedHash = '';
@@ -1589,7 +1602,10 @@ app.register = async () => {
     /* Article mis de côté avant la connexion : on le remet dans le panier. */
     const reprise = resumePendingCart();
     toast('✓ Compte créé. Bienvenue !');
-    location.hash = reprise ? '#/cart' : '#/home';
+    const retour = (savedHash && savedHash.indexOf('#/store/') === 0) ? savedHash
+                 : reprise ? '#/cart' : (savedHash || '#/home');
+    savedHash = '';
+    location.hash = retour;
   }catch(e){ err.textContent = e.message; err.style.display = 'block'; }
 };
 
