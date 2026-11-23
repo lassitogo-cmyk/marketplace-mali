@@ -460,8 +460,10 @@ function colorHex(n){
   return '#CBD5E1';
 }
 
-/* Carte produit du catalogue (accueil, boutique, recherche). */
-function prodCard(p){
+/* Carte produit du catalogue.
+   Sur l'accueil, toucher une carte ouvre la VITRINE DU VENDEUR.
+   Dans la vitrine, toucher une carte ouvre la fiche du produit. */
+function prodCard(p, dansBoutique){
   const ph = photosOf(p);
   const colors = p.colors || [];
   const badge = !(p.stock > 0)
@@ -469,7 +471,9 @@ function prodCard(p){
     : (colors.length
         ? '<span class="badge">🎨 '+colors.length+' couleurs</span>'
         : (p.stock <= 3 ? '<span class="badge">Reste '+p.stock+'</span>' : ''));
-  return '<div class="prod" onclick="app.go(\'#/product/'+p.id+'\')">' +
+  const sid = p.store_id || (p.store && p.store.id) || 0;
+  const dest = dansBoutique || !sid ? '#/product/'+p.id : '#/store/'+sid;
+  return '<div class="prod" onclick="app.go(\''+dest+'\')">' +
     '<div class="vis">' +
       (ph.length ? '<img src="'+esc(imgURL(ph[0], 400))+'" alt="'+esc(p.name)+'" loading="lazy">'
                  : emojiFor(p.category && p.category.name)) +
@@ -964,6 +968,7 @@ async function viewStore(id){
     $('#app').innerHTML = '<a href="#/home">‹ Retour</a>' +
       '<div class="card err" style="display:block;margin-top:8px">'+esc(e.message)+'</div>'; return; }
   const s = d.store, prods = (d.products && d.products.data) || [];
+  const tel = String(s.phone || '').replace(/[^+\d]/g, '');
   $('#app').innerHTML =
     '<a href="#/home">‹ Retour au marché</a>' +
     '<div class="card" style="margin-top:8px; text-align:center">' +
@@ -972,9 +977,13 @@ async function viewStore(id){
       '<h2 style="margin:0 0 4px">'+esc(s.name)+'</h2>' +
       '<div class="muted">'+esc(s.city || 'Bamako')+(s.phone ? ' · 📞 '+esc(s.phone) : '')+'</div>' +
       (s.description ? '<div class="muted" style="margin-top:6px">'+esc(s.description)+'</div>' : '') +
+      (tel ? '<div style="margin-top:10px">' +
+        '<a class="btn small" style="text-decoration:none" href="tel:'+esc(tel)+'">📞 Appeler la boutique</a> ' +
+        '<a class="btn small ghost" style="text-decoration:none" target="_blank" rel="noopener" ' +
+          'href="https://wa.me/'+esc(tel.replace(/^\+/, ''))+'">💬 WhatsApp</a></div>' : '') +
     '</div>' +
-    '<div class="sec-title"><h3>Produits</h3><span>'+prods.length+'</span></div>' +
-    '<div class="grid">' + (prods.length ? prods.map(prodCard).join('')
+    '<div class="sec-title"><h3>Produits de '+esc(s.name)+'</h3><span>'+prods.length+'</span></div>' +
+    '<div class="grid">' + (prods.length ? prods.map(p => prodCard(p, true)).join('')
       : '<div class="empty" style="grid-column:1/-1">Aucun produit pour l\'instant.</div>') + '</div>';
 }
 
@@ -1095,7 +1104,8 @@ async function viewProduct(id){
     '<div class="card" style="margin-top:8px">' +
       gallery +
       '<h2 style="margin:0 0 4px">'+esc(p.name)+'</h2>' +
-      '<div class="muted">🏪 '+esc(p.store && p.store.name || 'Boutique')+
+      '<div class="muted"><span onclick="app.go(\'#/store/'+(p.store_id||0)+'\')" '+
+        'style="cursor:pointer;text-decoration:underline">🏪 '+esc(p.store && p.store.name || 'Boutique')+'</span>'+
         (p.category ? ' · '+emojiFor(p.category.name)+' '+esc(p.category.name) : '')+'</div>' +
       '<div style="font-size:26px; color:var(--green); font-weight:800; margin:10px 0 2px">'+fcfa(p.price)+'</div>' +
       '<div class="muted">'+(p.stock>0 ? 'En stock : '+p.stock+' pièce(s)' : 'Rupture de stock')+'</div>' +
@@ -2446,7 +2456,9 @@ async function adminDashboard(){
     '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/signalements\')">Voir</button>');
   if (s.orders_pending) alertes.push('📥 <b>' + s.orders_pending + '</b> commande(s) en attente chez les vendeurs' +
     '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/commandes\')">Contrôler</button>');
-  if (s.stock_low) alertes.push('⚠️ <b>' + s.stock_low + '</b> produit(s) presque en rupture');
+  if (s.stock_out || s.stock_low) alertes.push('⚠️ <b>' + (s.stock_out || 0) + '</b> produit(s) en rupture' +
+    (s.stock_low ? ' et <b>' + s.stock_low + '</b> presque en rupture' : '') +
+    '<button class="btn small" style="margin-left:6px" onclick="app.go(\'#/admin/produits\')">Voir</button>');
   if (s.blocked) alertes.push('⛔ <b>' + s.blocked + '</b> compte(s) bloqué(s)');
 
   const tops = (d.top_boutiques || []).map(b =>
@@ -2496,6 +2508,28 @@ async function adminDashboard(){
       '<div class="dash-row"><span>Commissions encaissées</span><span class="r">' + fcfa(s.commissions_revenue || 0) + '</span></div>' +
       '<div class="dash-row"><span>Taux de commission</span><span class="r">' + (s.commission_rate || 10) + ' %</span></div>' +
     '</div>' +
+
+    (d.vendeurs && d.vendeurs.length
+      ? '<div class="card"><h3 style="margin-top:0">🏪 Vendeurs et boutiques</h3>' +
+          d.vendeurs.map(v => {
+            const bout = v.store || {};
+            const tel  = bout.phone || v.phone || '';
+            return '<div style="border-top:1px solid #E5E7EB;padding-top:9px;margin-top:9px">' +
+              '<div class="iline"><b>👤 ' + esc(v.name) + '</b>' +
+                (v.blocked ? '<span class="pill" style="color:#B91C1C;background:#FEE2E2">bloqué</span>' : '') + '</div>' +
+              '<div class="muted">🏪 ' + esc(bout.name || 'Aucune boutique') +
+                (bout.city ? ' · ' + esc(bout.city) : '') +
+                (tel ? ' · 📞 ' + esc(tel) : ' · ⚠️ téléphone manquant') + '</div>' +
+              '<div class="dash-row"><span>Produits en vente / total</span><span class="r">' +
+                (v.en_vente || 0) + ' / ' + (v.produits || 0) + '</span></div>' +
+              (v.rupture ? '<div class="dash-row"><span>En rupture</span><span class="r" style="color:#B91C1C">' + v.rupture + '</span></div>' : '') +
+              '<div class="dash-row"><span>Commandes payées</span><span class="r">' + (v.commandes || 0) + '</span></div>' +
+              '<div class="dash-row"><span>Chiffre d\'affaires</span><span class="r">' + fcfa(v.ca || 0) + '</span></div>' +
+              '<div class="dash-row"><span>Commission à recevoir</span><span class="r" style="color:#B45309">' +
+                fcfa((v.commission_due || 0) + (v.commission_declaree || 0)) + '</span></div>' +
+            '</div>';
+          }).join('') + '</div>'
+      : '') +
 
     (tops ? '<div class="card"><h3 style="margin-top:0">🏆 Meilleures boutiques</h3>' + tops + '</div>' : '') +
     (recentes ? '<div class="card"><h3 style="margin-top:0">🕒 Dernières commandes</h3>' + recentes + '</div>' : '');

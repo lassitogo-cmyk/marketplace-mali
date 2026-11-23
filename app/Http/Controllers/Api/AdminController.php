@@ -89,6 +89,52 @@ class AdminController extends Controller
             ->limit(5)
             ->get();
 
+        /* Vue fiable du marché : un vendeur = une boutique, ses produits,
+           ses commandes payées et ce qu'il doit au marché. */
+        $vendeurs = User::where('role', 'vendeur')
+            ->select('id', 'name', 'email', 'phone', 'store_id', 'blocked_at')
+            ->orderBy('name')->get()->map(function (User $u) use ($paid) {
+                $boutique = Store::where('user_id', $u->id)->first();
+                $ids = Store::where('user_id', $u->id)->pluck('id')
+                    ->push($u->store_id)->filter()->unique()->values()->all();
+
+                $ca = \Illuminate\Support\Facades\DB::table('order_items')
+                    ->join('orders', 'orders.id', '=', 'order_items.order_id')
+                    ->whereIn('order_items.store_id', $ids)
+                    ->whereIn('orders.status', $paid)
+                    ->sum('order_items.subtotal');
+
+                $commandes = \Illuminate\Support\Facades\DB::table('orders')
+                    ->join('order_items', 'orders.id', '=', 'order_items.order_id')
+                    ->whereIn('order_items.store_id', $ids)
+                    ->whereIn('orders.status', $paid)
+                    ->distinct()->count('orders.id');
+
+                return [
+                    'id'          => $u->id,
+                    'name'        => $u->name,
+                    'email'       => $u->email,
+                    'phone'       => $u->phone,
+                    'blocked'     => (bool) $u->blocked_at,
+                    'store'       => $boutique ? [
+                        'id'    => $boutique->id,
+                        'name'  => $boutique->name,
+                        'city'  => $boutique->city,
+                        'phone' => $boutique->phone,
+                    ] : ($u->store_id ? Store::find($u->store_id, ['id', 'name', 'city', 'phone']) : null),
+                    'produits'    => Product::whereIn('store_id', $ids)->count(),
+                    'en_vente'    => Product::whereIn('store_id', $ids)
+                        ->where('is_active', true)->where('stock', '>', 0)->count(),
+                    'rupture'     => Product::whereIn('store_id', $ids)->where('stock', '<=', 0)->count(),
+                    'commandes'   => $commandes,
+                    'ca'          => (int) $ca,
+                    'commission_due' => (int) Commission::where('user_id', $u->id)
+                        ->where('status', 'due')->sum('amount'),
+                    'commission_declaree' => (int) Commission::where('user_id', $u->id)
+                        ->where('status', 'declaree')->sum('amount'),
+                ];
+            })->values();
+
         return response()->json([
             'stats' => [
                 'revenue'        => (int) Order::whereIn('status', $paid)->sum('total'),
@@ -102,7 +148,8 @@ class AdminController extends Controller
                 'vendors'        => User::where('role', 'vendeur')->count(),
                 'couriers'       => User::where('role', 'livreur')->count(),
                 'stores'         => Store::count(),
-                'products'       => Product::count(),
+                'products'       => Product::where('is_active', true)->where('stock', '>', 0)->count(),
+                'products_total' => Product::count(),
                 'subs_active'    => Subscription::where('status', 'actif')->where('ends_at', '>', now())->count(),
                 'subs_soon'      => Subscription::where('status', 'actif')
                     ->whereBetween('ends_at', [now(), now()->addDays(7)])->count(),
@@ -115,10 +162,12 @@ class AdminController extends Controller
                 'commission_rate'            => CommissionService::rate(),
                 'reports_new'    => Report::where('status', 'nouveau')->count(),
                 'blocked'        => User::whereNotNull('blocked_at')->count(),
-                'stock_low'      => Product::where('stock', '<=', 3)->count(),
+                'stock_low'      => Product::whereBetween('stock', [1, 3])->count(),
+                'stock_out'      => Product::where('stock', '<=', 0)->count(),
             ],
             'serie'         => $serie,
             'top_boutiques' => $topBoutiques,
+            'vendeurs'      => $vendeurs,
             'recentes'      => Order::with('user:id,name')
                 ->orderByDesc('id')->limit(5)
                 ->get(['id', 'user_id', 'reference', 'status', 'total', 'created_at']),
