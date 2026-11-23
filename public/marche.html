@@ -72,26 +72,35 @@
         padding:8px 14px; border-radius:20px; font-size:14px; font-weight:600}
   .chip.on{background:var(--green); border-color:var(--green); color:#fff}
 
-  .grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
-  .prod{background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 2px 10px rgba(16,58,32,.08);
+  /* Produits grands et lisibles : une colonne sur téléphone. */
+  .grid{display:grid; grid-template-columns:1fr; gap:14px}
+  .prod{background:#fff; border-radius:18px; overflow:hidden; box-shadow:0 3px 14px rgba(16,58,32,.10);
         display:flex; flex-direction:column; transition:transform .15s}
   .prod:active{transform:scale(.98)}
-  .prod .vis{position:relative; height:140px; display:flex; align-items:center; justify-content:center;
-             font-size:52px; background:linear-gradient(160deg,#EAF3EA,#DDEBDD)}
+  .prod .vis{position:relative; height:250px; display:flex; align-items:center; justify-content:center;
+             font-size:76px; background:linear-gradient(160deg,#EAF3EA,#DDEBDD)}
   .prod .vis img{width:100%; height:100%; object-fit:cover; display:block}
-  .prod .badge{position:absolute; top:8px; left:8px; background:rgba(255,255,255,.94);
-               color:var(--green); font-size:10px; font-weight:800; padding:4px 8px; border-radius:8px;
-               box-shadow:0 1px 4px rgba(0,0,0,.12)}
-  .prod .body{padding:10px 11px 11px; display:flex; flex-direction:column; flex:1}
-  .prod .nm{font-size:14px; font-weight:700; line-height:1.25;
+  .prod .badge{position:absolute; top:10px; left:10px; background:rgba(255,255,255,.95);
+               color:var(--green); font-size:12px; font-weight:800; padding:6px 11px; border-radius:9px;
+               box-shadow:0 1px 5px rgba(0,0,0,.14)}
+  .prod .body{padding:13px 14px 14px; display:flex; flex-direction:column; flex:1}
+  .prod .nm{font-size:17px; font-weight:800; line-height:1.25;
             display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
-  .prod .st{font-size:12px; color:var(--muted); margin-top:2px;
+  .prod .st{font-size:13px; color:var(--muted); margin-top:3px;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .prod .dots{display:flex; gap:4px; margin-top:5px}
-  .prod .dots i{width:12px; height:12px; border-radius:50%; border:1px solid rgba(0,0,0,.15)}
-  .prod .pr{margin-top:auto; padding-top:8px; color:var(--green); font-weight:800; font-size:16px}
-  .prod .add{margin-top:6px; background:var(--green); color:#fff; border:0; border-radius:9px;
-             padding:9px; font-size:14px; font-weight:700}
+  .prod .dots{display:flex; gap:5px; margin-top:6px}
+  .prod .dots i{width:15px; height:15px; border-radius:50%; border:1px solid rgba(0,0,0,.15)}
+  .prod .pr{margin-top:auto; padding-top:10px; color:var(--green); font-weight:800; font-size:21px}
+  .prod .add{margin-top:8px; background:var(--green); color:#fff; border:0; border-radius:11px;
+             padding:13px; font-size:16px; font-weight:800}
+  @media (min-width:600px){
+    .grid{grid-template-columns:repeat(2,1fr)}
+    .prod .vis{height:260px}
+  }
+  @media (min-width:1000px){
+    .grid{grid-template-columns:repeat(3,1fr)}
+    .prod .vis{height:270px}
+  }
 
   /* chargement instantané : cartes grises animées */
   .prod.sk .vis{background:linear-gradient(100deg,#E9F1E9 30%,#F7FAF7 50%,#E9F1E9 70%);
@@ -140,7 +149,7 @@
   .gal-track{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none;
              -webkit-overflow-scrolling:touch; scroll-behavior:smooth}
   .gal-track::-webkit-scrollbar{display:none}
-  .gal-slide{flex:0 0 100%; scroll-snap-align:center; height:300px; display:flex; align-items:center;
+  .gal-slide{flex:0 0 100%; scroll-snap-align:center; height:360px; display:flex; align-items:center;
              justify-content:center; font-size:96px; background:linear-gradient(160deg,#EAF3EA,#DDEBDD)}
   .gal-slide img{width:100%; height:100%; object-fit:cover; display:block}
   .gal-nav{position:absolute; top:50%; transform:translateY(-50%); width:34px; height:34px;
@@ -481,7 +490,10 @@ function prodCard(p, dansBoutique){
     : 'app.openBoutique('+p.id+','+sid+')';
   return '<div class="prod" onclick="'+click+'">' +
     '<div class="vis">' +
-      (ph.length ? '<img src="'+esc(imgURL(ph[0], 400))+'" alt="'+esc(p.name)+'" loading="lazy">'
+      (ph.length ? '<img src="'+esc(imgURL(ph[0], 400))+'" '+
+          'srcset="'+esc(imgURL(ph[0], 400))+' 400w, '+esc(imgURL(ph[0], 600))+' 600w" '+
+          'sizes="(min-width:1000px) 33vw, (min-width:600px) 50vw, 100vw" '+
+          'alt="'+esc(p.name)+'" loading="lazy">'
                  : emojiFor(p.category && p.category.name)) +
       badge +
     '</div>' +
