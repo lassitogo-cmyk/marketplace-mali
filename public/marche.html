@@ -1036,20 +1036,32 @@ function renderGrid(list){
   const c = $('#pcount'); if (c) c.textContent = items.length + ' affiché(s)';
 }
 
+/* Recherche tolérant les accents : « ecouteurs » trouve « Écouteurs ». */
+const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 app.search = s => {
   catalog.search = s.trim();
   /* Réponse immédiate avec les produits déjà chargés, puis confirmation
      par l'API (150 ms) pour trouver aussi les produits des autres pages. */
-  if (!catalog.search) renderGrid();
-  else{
-    const q = catalog.search.toLowerCase();
-    renderGrid(catalog.items.filter(p =>
-      String(p.name || '').toLowerCase().includes(q) ||
-      String((p.category && p.category.name) || '').toLowerCase().includes(q)));
+  let local = catalog.items;
+  if (catalog.search){
+    const q = norm(catalog.search);
+    local = catalog.items.filter(p =>
+      norm(p.name).includes(q) || norm(p.category && p.category.name).includes(q));
   }
+  renderGrid(local);
+
   clearTimeout(app._t);
   app._t = setTimeout(async () => {
-    catalog.page = 1; await loadProducts(true); renderGrid();
+    catalog.page = 1; await loadProducts(true);
+    if (!catalog.search){ renderGrid(); return; }
+    /* On garde les correspondances locales (accents) que l'API ne sait pas
+       toujours retrouver, en évitant les doublons. */
+    const seen = {}, merged = [];
+    [...local, ...catalog.items].forEach(p => {
+      if (!seen[p.id]){ seen[p.id] = 1; merged.push(p); }
+    });
+    renderGrid(merged);
   }, 150);
 };
 app.setCat = async id => { catalog.cat = id; catalog.page = 1;
